@@ -5,6 +5,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.db.session import SessionLocal
+from app.middleware.network_access import NetworkAccessMiddleware
 from app.services.bootstrap_service import seed_sample_data
 
 settings = get_settings()
@@ -30,6 +31,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(NetworkAccessMiddleware)
 app.include_router(api_router, prefix=settings.api_prefix)
 
 

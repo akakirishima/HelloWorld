@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { ApiError } from "@/api/client";
-import { apiFetch } from "@/api/client";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
@@ -15,10 +14,6 @@ export function AdminSettingsPage() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [noteBindings, setNoteBindings] = useState<Record<string, NoteSheetBindingDraft>>({});
-  const [bindingMessage, setBindingMessage] = useState<string | null>(null);
-  const [bindingError, setBindingError] = useState<string | null>(null);
-  const [savingBindingFor, setSavingBindingFor] = useState<string | null>(null);
 
   const sortedRooms = useMemo(
     () => [...draftLab.rooms].sort((left, right) => left.displayOrder - right.displayOrder),
@@ -29,13 +24,6 @@ export function AdminSettingsPage() {
   useEffect(() => {
     setDraftLab(state.lab);
   }, [state.lab]);
-
-  useEffect(() => {
-    if (!isLoaded) {
-      return;
-    }
-    void loadNoteBindings();
-  }, [isLoaded, state.users]);
 
   const updateRoomDraft = (roomId: string, patch: Partial<RoomItem>) => {
     setSavedMessage(null);
@@ -94,56 +82,6 @@ export function AdminSettingsPage() {
     setSaveError(null);
   };
 
-  const handleBindingDraftChange = (userId: string, patch: Partial<NoteSheetBindingDraft>) => {
-    setBindingMessage(null);
-    setBindingError(null);
-    setNoteBindings((current) => ({
-      ...current,
-      [userId]: {
-        ...current[userId],
-        userId,
-        displayName: current[userId]?.displayName ?? userId,
-        spreadsheetId: current[userId]?.spreadsheetId ?? "",
-        sheetName: current[userId]?.sheetName ?? "notes",
-        isActive: current[userId]?.isActive ?? false,
-        ...patch,
-      },
-    }));
-  };
-
-  const saveBinding = async (userId: string) => {
-    const draft = noteBindings[userId];
-    if (!draft) {
-      return;
-    }
-    setSavingBindingFor(userId);
-    setBindingMessage(null);
-    setBindingError(null);
-    try {
-      const updated = await apiFetch<NoteSheetBindingResponse>(`/settings/note-sheet-bindings/${userId}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          spreadsheet_id: draft.spreadsheetId,
-          sheet_name: draft.sheetName,
-          is_active: draft.isActive,
-        }),
-      });
-      setNoteBindings((current) => ({
-        ...current,
-        [userId]: toBindingDraft(updated),
-      }));
-      setBindingMessage(`${draft.displayName} の日誌保存先を保存しました。`);
-    } catch (error) {
-      if (error instanceof ApiError) {
-        setBindingError(error.message);
-      } else {
-        setBindingError("日誌保存先の保存に失敗しました。");
-      }
-    } finally {
-      setSavingBindingFor(null);
-    }
-  };
-
   if (!isLoaded) {
     return (
       <Panel title="研究室設定" description="研究室設定を読み込んでいます。">
@@ -192,7 +130,7 @@ export function AdminSettingsPage() {
             />
           </label>
           <p className="text-xs text-slate-500">
-            保存ボタンを押すと研究室名と部屋設定を backend API 経由で SQLite に反映します。
+            保存ボタンを押すと研究室名と部屋設定を backend API 経由で研究室内のデータベースへ反映します。
           </p>
           {savedMessage ? (
             <p className="text-sm font-medium text-emerald-700" data-testid="settings-saved-message">
@@ -258,98 +196,16 @@ export function AdminSettingsPage() {
       </Panel>
 
       <Panel
-        title="日誌保存先設定"
-        description="各ユーザーの日誌保存先 Spreadsheet ID と sheet_name を設定します。Google OAuth 連携済みユーザーのみ日誌 API を利用できます。"
+        title="日誌保存"
+        description="日誌はユーザーごとに研究室内 NAS へ Markdown 形式で保存されます。個別の Google 連携設定は不要です。"
       >
-        <div className="space-y-3">
-          {bindingMessage ? <p className="text-sm font-medium text-emerald-700">{bindingMessage}</p> : null}
-          {bindingError ? <p className="text-sm font-medium text-rose-700">{bindingError}</p> : null}
-          {state.users.map((user) => {
-            const draft = noteBindings[user.userId] ?? {
-              userId: user.userId,
-              displayName: user.displayName,
-              spreadsheetId: "",
-              sheetName: "notes",
-              isActive: false,
-            };
-            return (
-              <FilterBar key={user.userId} className="bg-white">
-                <div className="flex min-w-[200px] flex-1 flex-col gap-1 rounded-2xl bg-slate-50 px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-950">{user.displayName}</p>
-                  <p className="text-xs text-slate-500">{user.userId}</p>
-                </div>
-                <label className="flex min-w-[280px] flex-[2] flex-col gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    Spreadsheet ID
-                  </span>
-                  <input
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-slate-400"
-                    onChange={(event) =>
-                      handleBindingDraftChange(user.userId, { spreadsheetId: event.target.value })
-                    }
-                    placeholder="1AbCdEf..."
-                    value={draft.spreadsheetId}
-                  />
-                </label>
-                <label className="flex min-w-[160px] flex-1 flex-col gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    sheet_name
-                  </span>
-                  <input
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-slate-400"
-                    onChange={(event) =>
-                      handleBindingDraftChange(user.userId, { sheetName: event.target.value || "notes" })
-                    }
-                    value={draft.sheetName}
-                  />
-                </label>
-                <label className="flex min-w-[140px] flex-1 flex-col gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    状態
-                  </span>
-                  <select
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-slate-400"
-                    onChange={(event) =>
-                      handleBindingDraftChange(user.userId, { isActive: event.target.value === "active" })
-                    }
-                    value={draft.isActive ? "active" : "inactive"}
-                  >
-                    <option value="active">有効</option>
-                    <option value="inactive">無効</option>
-                  </select>
-                </label>
-                <div className="flex min-w-[120px] items-end">
-                  <ToolbarButton
-                    label={savingBindingFor === user.userId ? "保存中..." : "保存"}
-                    onClick={() => void saveBinding(user.userId)}
-                    tone="primary"
-                  />
-                </div>
-              </FilterBar>
-            );
-          })}
+        <div className="space-y-3 rounded-3xl border border-slate-200 bg-white px-5 py-5 text-sm text-slate-600">
+          <p>各ユーザーの日誌は日付ごとに自動で整理され、管理者が個別に保存先を設定する必要はありません。</p>
+          <p>運用上は NAS の共有フォルダ、バックアップ世代管理、研究室ネットワーク制限を Container Station 側で管理します。</p>
         </div>
       </Panel>
     </div>
   );
-
-  async function loadNoteBindings() {
-    try {
-      const response = await apiFetch<NoteSheetBindingListResponse>("/settings/note-sheet-bindings");
-      setNoteBindings(
-        response.items.reduce<Record<string, NoteSheetBindingDraft>>((acc, item) => {
-          acc[item.user_id] = toBindingDraft(item);
-          return acc;
-        }, {}),
-      );
-    } catch (error) {
-      if (error instanceof ApiError) {
-        setBindingError(error.message);
-      } else {
-        setBindingError("日誌保存先設定の読み込みに失敗しました。");
-      }
-    }
-  }
 }
 
 function normalizeLabSettings(lab: LabSettings): LabSettings {
@@ -362,35 +218,5 @@ function normalizeLabSettings(lab: LabSettings): LabSettings {
         displayOrder: room.displayOrder > 0 ? room.displayOrder : index + 1,
       }))
       .sort((left, right) => left.displayOrder - right.displayOrder),
-  };
-}
-
-type NoteSheetBindingResponse = {
-  user_id: string;
-  display_name: string;
-  spreadsheet_id: string;
-  sheet_name: string;
-  is_active: boolean;
-};
-
-type NoteSheetBindingListResponse = {
-  items: NoteSheetBindingResponse[];
-};
-
-type NoteSheetBindingDraft = {
-  userId: string;
-  displayName: string;
-  spreadsheetId: string;
-  sheetName: string;
-  isActive: boolean;
-};
-
-function toBindingDraft(item: NoteSheetBindingResponse): NoteSheetBindingDraft {
-  return {
-    userId: item.user_id,
-    displayName: item.display_name,
-    spreadsheetId: item.spreadsheet_id,
-    sheetName: item.sheet_name || "notes",
-    isActive: item.is_active,
   };
 }

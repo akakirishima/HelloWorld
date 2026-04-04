@@ -1,6 +1,6 @@
 # 研究室 在室・勤怠・日誌管理システム
 
-React + FastAPI + SQLite を前提にした MVP の開発基盤です。  
+React + FastAPI を前提にした MVP の開発基盤です。  
 既存の Flutter サンプルである `hello_world/` は触らず、要件書どおりの新構成をリポジトリ直下に追加しています。
 
 ## セットアップ済みの内容
@@ -8,9 +8,10 @@ React + FastAPI + SQLite を前提にした MVP の開発基盤です。
 - `frontend/`: Vite + React + TypeScript + React Router + TanStack Query + React Hook Form + Zod + Tailwind CSS
 - `backend/`: FastAPI + SQLAlchemy 2.x + Alembic + pytest
 - `docker-compose.yml`: frontend / backend / Caddy をまとめて起動
+- `docker-compose.qnap.yml`: QNAP TS-433 + PostgreSQL + NAS保存向け本番構成
 - `infra/caddy/Caddyfile`: `/api` を backend に、それ以外を frontend にリバースプロキシ
 - Alembic 初期マイグレーション
-- SQLite 用 seed データ
+- seed データ
 
 ## ディレクトリ構成
 
@@ -92,6 +93,37 @@ uvicorn app.main:app --reload
 - frontend のダッシュボードで `GET /api/health` の疎通が成功する
 - backend の `/api/docs` が開く
 - `backend/data/app.db` が作成される
+
+## QNAP TS-433 本番構成
+
+QNAP `172.16.1.10` へ載せる本番構成は `docker-compose.qnap.yml` を使います。想定は次のとおりです。
+
+- 公開URL: `http://172.16.1.10:8088`
+- QNAP管理画面: `https://172.16.1.10` または `http://172.16.1.10:8080`
+- DB: `PostgreSQL`
+- 日報: NAS 共有フォルダ上の Markdown
+- ネットワーク制限: `172.16.1.0/24`
+
+### QNAP 側の準備
+
+1. Container Station を有効化する
+2. 共有フォルダ `lab-app` を作る
+3. `lab-app/postgres` `lab-app/reports` `lab-app/backups` を作る
+4. `.env.qnap.example` をコピーして `.env.qnap` を作り、`QNAP_APP_ROOT` を実機の共有フォルダパスへ合わせる
+
+### 起動
+
+```bash
+docker compose --env-file .env.qnap -f docker-compose.qnap.yml up --build -d
+```
+
+### PostgreSQL バックアップ
+
+backend コンテナ内で次を実行すると、`/app/data/backups/postgres` にダンプを作成します。
+
+```bash
+python -m app.commands.backup_postgres
+```
 
 ## 次フェーズ
 

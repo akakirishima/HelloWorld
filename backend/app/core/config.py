@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "Laboratory Presence Management"
     app_env: str = "development"
     api_prefix: str = "/api"
+    app_base_url: str = "http://localhost:8088"
     database_url: str = "sqlite:///./data/app.db"
     session_secret_key: str = "dev-session-secret-change-me"
     cors_origins: Annotated[list[str], NoDecode] = Field(
@@ -18,6 +19,11 @@ class Settings(BaseSettings):
     )
     sqlalchemy_echo: bool = False
     auto_seed: bool = True
+    notes_storage_mode: str = "file"
+    notes_root_path: str = "./data/reports"
+    backup_root_path: str = "./data/backups"
+    backup_retention_count: int = 30
+    allowed_subnets: Annotated[list[str], NoDecode] = Field(default_factory=list)
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
     google_oauth_redirect_uri: str = "http://localhost:8000/api/notes/google/connect/callback"
@@ -38,6 +44,13 @@ class Settings(BaseSettings):
         if isinstance(value, list):
             return value
         return [origin.strip() for origin in value.split(",") if origin.strip()]
+
+    @field_validator("allowed_subnets", mode="before")
+    @classmethod
+    def parse_allowed_subnets(cls, value: str | list[str]) -> list[str]:
+        if isinstance(value, list):
+            return value
+        return [subnet.strip() for subnet in value.split(",") if subnet.strip()]
 
     @field_validator("google_oauth_scopes", mode="before")
     @classmethod

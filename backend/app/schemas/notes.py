@@ -32,15 +32,3 @@ class UpdateNoteRequest(BaseModel):
     note_date: date
     title: str = ""
     body_markdown: str = ""
-
-
-class GoogleNotesStatusResponse(BaseModel):
-    connected: bool
-    spreadsheet_configured: bool
-    spreadsheet_id: str | None
-    sheet_name: str | None
-    is_binding_active: bool
-
-
-class GoogleConnectStartResponse(BaseModel):
-    auth_url: str

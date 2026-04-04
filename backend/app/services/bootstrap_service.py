@@ -8,13 +8,11 @@ from app.core.constants import PresenceStatus, UserRole
 from app.core.security import get_password_hash
 from app.models.lab import Lab
 from app.models.note import Note
-from app.models.note_sheet_binding import NoteSheetBinding
 from app.models.presence_latest import PresenceLatest
 from app.models.room import Room
 from app.models.session import Session as AttendanceSession
 from app.models.status_change import StatusChange
 from app.models.user import User
-from app.models.user_google_token import UserGoogleToken
 from app.repositories.user_repository import UserRepository
 
 LAB_NAME = "情報処理研究室"

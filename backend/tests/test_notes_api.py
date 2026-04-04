@@ -1,173 +1,15 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
-from uuid import uuid4
+from pathlib import Path
 
-from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
-from app.api.routes import notes as notes_routes
 from app.main import app
-from app.services.google_notes_service import NoteRecord
+from app.services import file_notes_service
 
 
-class FakeGoogleSheetsNotesStore:
-    status_by_user: dict[str, dict[str, object]] = {}
-    notes_by_user: dict[str, list[NoteRecord]] = {}
-
-    def __init__(self, db, user) -> None:
-        self.user_id = user.user_id
-
-    @classmethod
-    def reset(cls) -> None:
-        cls.status_by_user = {}
-        cls.notes_by_user = {}
-
-    @classmethod
-    def set_status(
-        cls,
-        user_id: str,
-        *,
-        connected: bool,
-        spreadsheet_configured: bool,
-        spreadsheet_id: str | None = None,
-        sheet_name: str | None = "notes",
-        is_binding_active: bool = True,
-    ) -> None:
-        cls.status_by_user[user_id] = {
-            "connected": connected,
-            "spreadsheet_configured": spreadsheet_configured,
-            "spreadsheet_id": spreadsheet_id,
-            "sheet_name": sheet_name,
-            "is_binding_active": is_binding_active,
-        }
-
-    def get_google_status(self) -> dict[str, object]:
-        return self._status()
-
-    def list_notes(self, *, q: str | None, date_from: date | None, date_to: date | None) -> list[NoteRecord]:
-        self._assert_ready()
-        items = list(self.notes_by_user.get(self.user_id, []))
-        if q:
-            keyword = q.lower()
-            items = [item for item in items if keyword in item.title.lower() or keyword in item.body_markdown.lower()]
-        if date_from:
-            items = [item for item in items if item.note_date >= date_from]
-        if date_to:
-            items = [item for item in items if item.note_date <= date_to]
-        return sorted(items, key=lambda item: (item.note_date, item.updated_at), reverse=True)
-
-    def get_note(self, note_id: str) -> NoteRecord | None:
-        self._assert_ready()
-        return next((item for item in self.notes_by_user.get(self.user_id, []) if item.id == note_id), None)
-
-    def create_note(self, *, note_date: date, title: str, body_markdown: str) -> NoteRecord:
-        self._assert_ready()
-        items = self.notes_by_user.setdefault(self.user_id, [])
-        if any(item.note_date == note_date for item in items):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A note for this date already exists.")
-
-        now = datetime.now(timezone.utc)
-        record = NoteRecord(
-            id=str(uuid4()),
-            note_date=note_date,
-            title=title,
-            body_markdown=body_markdown,
-            created_at=now,
-            updated_at=now,
-        )
-        items.append(record)
-        return record
-
-    def update_note(self, *, note_id: str, note_date: date, title: str, body_markdown: str) -> NoteRecord:
-        self._assert_ready()
-        items = self.notes_by_user.setdefault(self.user_id, [])
-        target = next((item for item in items if item.id == note_id), None)
-        if target is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found.")
-        if any(item.note_date == note_date and item.id != note_id for item in items):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A note for this date already exists.")
-
-        target.note_date = note_date
-        target.title = title
-        target.body_markdown = body_markdown
-        target.updated_at = datetime.now(timezone.utc)
-        return target
-
-    def delete_note(self, *, note_id: str) -> None:
-        self._assert_ready()
-        items = self.notes_by_user.setdefault(self.user_id, [])
-        next_items = [item for item in items if item.id != note_id]
-        if len(next_items) == len(items):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found.")
-        self.notes_by_user[self.user_id] = next_items
-
-    def _status(self) -> dict[str, object]:
-        return self.status_by_user.get(
-            self.user_id,
-            {
-                "connected": False,
-                "spreadsheet_configured": False,
-                "spreadsheet_id": None,
-                "sheet_name": None,
-                "is_binding_active": False,
-            },
-        )
-
-    def _assert_ready(self) -> None:
-        status_payload = self._status()
-        if not status_payload["connected"]:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Google OAuth connection required.")
-        if not status_payload["spreadsheet_configured"] or not status_payload["is_binding_active"]:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Spreadsheet binding is not configured.")
-
-
-def test_notes_require_google_connection_and_sheet_binding(monkeypatch) -> None:
-    _use_fake_notes_store(monkeypatch)
-
-    with TestClient(app) as client:
-        _login(client, "admin", "admin1234")
-
-        no_oauth = client.get("/api/notes")
-        assert no_oauth.status_code == 403
-
-        FakeGoogleSheetsNotesStore.set_status(
-            "admin",
-            connected=True,
-            spreadsheet_configured=False,
-            is_binding_active=False,
-        )
-        no_binding = client.get("/api/notes")
-        assert no_binding.status_code == 409
-
-        FakeGoogleSheetsNotesStore.set_status(
-            "admin",
-            connected=True,
-            spreadsheet_configured=True,
-            spreadsheet_id="sheet-admin",
-            sheet_name="notes",
-            is_binding_active=True,
-        )
-        status_ok = client.get("/api/notes/google/status")
-        assert status_ok.status_code == 200
-        assert status_ok.json()["connected"] is True
-        assert status_ok.json()["spreadsheet_configured"] is True
-
-        list_ok = client.get("/api/notes")
-        assert list_ok.status_code == 200
-        assert list_ok.json()["items"] == []
-
-
-def test_notes_crud_filters_and_single_note_per_day(monkeypatch) -> None:
-    _use_fake_notes_store(monkeypatch)
-    FakeGoogleSheetsNotesStore.set_status(
-        "admin",
-        connected=True,
-        spreadsheet_configured=True,
-        spreadsheet_id="sheet-admin",
-        sheet_name="notes",
-        is_binding_active=True,
-    )
+def test_notes_crud_filters_and_single_note_per_day(monkeypatch, tmp_path: Path) -> None:
+    _use_temp_notes_root(monkeypatch, tmp_path)
 
     with TestClient(app) as client:
         _login(client, "admin", "admin1234")
@@ -178,6 +20,10 @@ def test_notes_crud_filters_and_single_note_per_day(monkeypatch) -> None:
         )
         assert first_create.status_code == 201
         first_id = first_create.json()["id"]
+
+        note_file = tmp_path / "admin" / "2026" / "2026-03-08.md"
+        assert note_file.exists()
+        assert '"user_id": "admin"' in note_file.read_text(encoding="utf-8")
 
         duplicate_create = client.post(
             "/api/notes",
@@ -210,16 +56,17 @@ def test_notes_crud_filters_and_single_note_per_day(monkeypatch) -> None:
 
         update_ok = client.put(
             f"/api/notes/{first_id}",
-            json={"note_date": "2026-03-08", "title": "", "body_markdown": ""},
+            json={"note_date": "2026-03-09", "title": "", "body_markdown": ""},
         )
         assert update_ok.status_code == 200
-        assert update_ok.json()["title"] == ""
-        assert update_ok.json()["body_markdown"] == ""
+        assert update_ok.json()["id"] == "2026-03-09"
+        assert not note_file.exists()
+        assert (tmp_path / "admin" / "2026" / "2026-03-09.md").exists()
 
-        delete_ok = client.delete(f"/api/notes/{first_id}")
+        delete_ok = client.delete("/api/notes/2026-03-09")
         assert delete_ok.status_code == 204
 
-        missing_after_delete = client.get(f"/api/notes/{first_id}")
+        missing_after_delete = client.get("/api/notes/2026-03-09")
         assert missing_after_delete.status_code == 404
 
         remaining = client.get("/api/notes")
@@ -227,24 +74,8 @@ def test_notes_crud_filters_and_single_note_per_day(monkeypatch) -> None:
         assert len(remaining.json()["items"]) == 1
 
 
-def test_notes_are_isolated_per_user(monkeypatch) -> None:
-    _use_fake_notes_store(monkeypatch)
-    FakeGoogleSheetsNotesStore.set_status(
-        "admin",
-        connected=True,
-        spreadsheet_configured=True,
-        spreadsheet_id="sheet-admin",
-        sheet_name="notes",
-        is_binding_active=True,
-    )
-    FakeGoogleSheetsNotesStore.set_status(
-        "shimizu-yuichiro",
-        connected=True,
-        spreadsheet_configured=True,
-        spreadsheet_id="sheet-shimizu",
-        sheet_name="notes",
-        is_binding_active=True,
-    )
+def test_notes_are_isolated_per_user(monkeypatch, tmp_path: Path) -> None:
+    _use_temp_notes_root(monkeypatch, tmp_path)
 
     with TestClient(app) as client:
         _login(client, "admin", "admin1234")
@@ -272,9 +103,11 @@ def test_notes_are_isolated_per_user(monkeypatch) -> None:
         assert cannot_read_member_note.status_code == 404
 
 
-def _use_fake_notes_store(monkeypatch) -> None:
-    FakeGoogleSheetsNotesStore.reset()
-    monkeypatch.setattr(notes_routes, "GoogleSheetsNotesStore", FakeGoogleSheetsNotesStore)
+def _use_temp_notes_root(monkeypatch, tmp_path: Path) -> None:
+    class DummySettings:
+        notes_root_path = str(tmp_path)
+
+    monkeypatch.setattr(file_notes_service, "get_settings", lambda: DummySettings())
 
 
 def _login(client: TestClient, user_id: str, password: str) -> None:
