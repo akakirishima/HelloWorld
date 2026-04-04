@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+  color: #102033;
+  background:
+    radial-gradient(circle at top left, rgba(255, 232, 211, 0.9), transparent 32%),
+    radial-gradient(circle at top right, rgba(179, 215, 255, 0.9), transparent 28%),
+    linear-gradient(180deg, #f7fbff 0%, #f2f6f3 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --panel-border: rgba(255, 255, 255, 0.78);
+  --panel-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+  --soft-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+#root {
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: rgba(14, 124, 121, 0.18);
+}
+
+@layer base {
+  body {
+    @apply text-slate-900;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight text-slate-950;
+  }
+}
