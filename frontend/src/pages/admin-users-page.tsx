@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm, type UseFormRegisterReturn } from "react-hook-form";
+import { useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { ApiError } from "@/api/client";
@@ -8,7 +9,6 @@ import { DataRow, DataTable } from "@/components/ui/data-table";
 import { FilterBar, FilterField } from "@/components/ui/filter-bar";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { ToolbarButton } from "@/components/ui/toolbar-button";
 import { useLabBoard } from "@/features/lab-board/lab-board-context";
 import { academicGradeOrder } from "@/mocks/app-data";
@@ -21,7 +21,6 @@ const createUserSchema = z.object({
   role: z.enum(["admin", "member"]),
   academicGrade: z.enum(["Researcher", "B4", "M1", "M2", "D1", "D2", "D3"]),
   roomId: z.string(),
-  isActive: z.boolean(),
 });
 
 type CreateUserFormValues = z.infer<typeof createUserSchema>;
@@ -32,11 +31,21 @@ export function AdminUsersPage() {
     createUser,
     isLoaded,
     state,
-    updateUserActive,
     updateUserGrade,
     updateUserRole,
     updateUserRoom,
   } = useLabBoard();
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Stage 1: どのユーザーの削除警告を展開中か
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  // 削除成功後に戻ってきたときのバナー
+  const deletedName =
+    (location.state as { deletedName?: string } | null)?.deletedName ?? null;
+
   const [createMessage, setCreateMessage] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const form = useForm<CreateUserFormValues>({
@@ -49,7 +58,6 @@ export function AdminUsersPage() {
       role: "member",
       academicGrade: "M1",
       roomId: "",
-      isActive: true,
     },
   });
 
@@ -66,7 +74,7 @@ export function AdminUsersPage() {
         role: values.role,
         academicGrade: values.academicGrade,
         roomId: values.roomId.length > 0 ? values.roomId : null,
-        isActive: values.isActive,
+        isActive: true,
       });
       setCreateMessage("メンバーアカウントを作成しました。初期 ID / 初期パスワードを配布してください。");
       form.reset({
@@ -77,7 +85,6 @@ export function AdminUsersPage() {
         role: "member",
         academicGrade: "M1",
         roomId: "",
-        isActive: true,
       });
     } catch (error) {
       if (error instanceof ApiError) {
@@ -106,6 +113,14 @@ export function AdminUsersPage() {
         title="ユーザー管理"
         description="管理者がメンバーアカウントを作成し、初期パスワードを配布する 1 研究室専用フローで運用します。"
       />
+
+      {/* 削除完了バナー */}
+      {deletedName && (
+        <div className="flex items-center gap-3 rounded-2xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+          <span className="text-emerald-600">✓</span>
+          {deletedName} を削除しました
+        </div>
+      )}
 
       <Panel
         title="新規メンバー登録"
@@ -183,11 +198,6 @@ export function AdminUsersPage() {
             </select>
           </label>
 
-          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            <input className="h-4 w-4" type="checkbox" {...form.register("isActive")} />
-            有効ユーザーとして作成
-          </label>
-
           <div className="xl:col-span-4 flex flex-wrap items-center gap-3">
             <ToolbarButton
               label={form.formState.isSubmitting ? "登録中..." : "アカウントを作成"}
@@ -200,89 +210,110 @@ export function AdminUsersPage() {
         </form>
       </Panel>
 
-      <Panel title="検索と一覧" description="ロール、所属部屋、学年、有効状態をこの場で更新できます。">
+      <Panel title="検索と一覧" description="ロール、所属部屋、学年をこの場で更新できます。削除は各行の「削除」ボタンから行います。">
         <div className="space-y-4">
           <FilterBar>
             <FilterField label="検索" placeholder="ユーザーID、表示名" wide />
             <FilterField label="ロール" value="すべて" />
-            <FilterField label="状態" value="すべて" />
           </FilterBar>
           <DataTable
-            columns={["ユーザーID", "表示名", "学年", "ロール", "部屋", "状態", "操作"]}
+            columns={["ユーザーID", "表示名", "学年", "ロール", "部屋", "操作"]}
           >
             {state.users.map((item) => (
-              <DataRow
-                key={item.id}
-                cells={[
-                  item.userId,
-                  item.displayName,
-                  <select
-                    key="grade"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400"
-                    data-testid={`user-grade-select-${item.id}`}
-                    onChange={(event) =>
-                      void updateUserGrade(
-                        item.id,
-                        event.target.value as (typeof academicGradeOrder)[number],
-                      )
-                    }
-                    value={item.academicGrade}
-                  >
-                    {academicGradeOrder.map((grade) => (
-                      <option key={grade} value={grade}>
-                        {grade}
-                      </option>
-                    ))}
-                  </select>,
-                  <select
-                    key="role"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400"
-                    data-testid={`user-role-select-${item.id}`}
-                    onChange={(event) =>
-                      void updateUserRole(item.id, event.target.value as "admin" | "member")
-                    }
-                    value={item.role}
-                  >
-                    <option value="member">member</option>
-                    <option value="admin">admin</option>
-                  </select>,
-                  <select
-                    key="room"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400"
-                    data-testid={`user-room-select-${item.id}`}
-                    onChange={(event) =>
-                      void updateUserRoom(item.id, event.target.value.length > 0 ? event.target.value : null)
-                    }
-                    value={item.roomId ?? ""}
-                  >
-                    <option value="">未所属</option>
-                    {activeRooms.map((room) => (
-                      <option key={room.id} value={room.id}>
-                        {room.name}
-                      </option>
-                    ))}
-                  </select>,
-                  <StatusBadge
-                    key="active"
-                    text={item.isActive ? "有効" : "無効"}
-                    tone={item.isActive ? "success" : "danger"}
-                  />,
-                  item.isActive ? (
+              <div key={item.id}>
+                <DataRow
+                  cells={[
+                    item.userId,
+                    item.displayName,
+                    <select
+                      key="grade"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400"
+                      data-testid={`user-grade-select-${item.id}`}
+                      onChange={(event) =>
+                        void updateUserGrade(
+                          item.id,
+                          event.target.value as (typeof academicGradeOrder)[number],
+                        )
+                      }
+                      value={item.academicGrade}
+                    >
+                      {academicGradeOrder.map((grade) => (
+                        <option key={grade} value={grade}>
+                          {grade}
+                        </option>
+                      ))}
+                    </select>,
+                    <select
+                      key="role"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400"
+                      data-testid={`user-role-select-${item.id}`}
+                      onChange={(event) =>
+                        void updateUserRole(item.id, event.target.value as "admin" | "member")
+                      }
+                      value={item.role}
+                    >
+                      <option value="member">member</option>
+                      <option value="admin">admin</option>
+                    </select>,
+                    <select
+                      key="room"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-slate-400"
+                      data-testid={`user-room-select-${item.id}`}
+                      onChange={(event) =>
+                        void updateUserRoom(item.id, event.target.value.length > 0 ? event.target.value : null)
+                      }
+                      value={item.roomId ?? ""}
+                    >
+                      <option value="">未所属</option>
+                      {activeRooms.map((room) => (
+                        <option key={room.id} value={room.id}>
+                          {room.name}
+                        </option>
+                      ))}
+                    </select>,
                     <ToolbarButton
-                      key="disable"
-                      label="無効化"
-                      onClick={() => void updateUserActive(item.id, false)}
-                    />
-                  ) : (
-                    <ToolbarButton
-                      key="enable"
-                      label="再有効化"
-                      onClick={() => void updateUserActive(item.id, true)}
-                      tone="primary"
-                    />
-                  ),
-                ]}
-              />
+                      key="delete"
+                      label={pendingDeleteId === item.id ? "キャンセル" : "削除"}
+                      tone={pendingDeleteId === item.id ? "secondary" : "danger"}
+                      onClick={() =>
+                        setPendingDeleteId(
+                          pendingDeleteId === item.id ? null : item.id,
+                        )
+                      }
+                    />,
+                  ]}
+                />
+
+                {/* Stage 1: インライン警告バナー */}
+                {pendingDeleteId === item.id && (
+                  <div className="border-t border-rose-200 bg-rose-50 px-4 py-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="text-sm text-rose-800">
+                        <span className="mr-2 font-bold">⚠️</span>
+                        <strong>{item.displayName}（{item.userId}）</strong>{" "}
+                        のアカウントとすべての関連データを削除しようとしています。
+                        この操作は取り消せません。
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <ToolbarButton
+                          label="キャンセル"
+                          onClick={() => setPendingDeleteId(null)}
+                        />
+                        <ToolbarButton
+                          label="削除確認ページへ進む →"
+                          tone="danger"
+                          onClick={() => {
+                            navigate(
+                              `/admin/users/delete/${item.id}`,
+                              { state: { user: item } },
+                            );
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             ))}
           </DataTable>
         </div>

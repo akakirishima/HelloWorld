@@ -5,12 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends postgresql-client && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY pyproject.toml README.md alembic.ini ./
-COPY alembic ./alembic
+COPY pyproject.toml README.md ./
 COPY app ./app
 
 RUN pip install --upgrade pip && \

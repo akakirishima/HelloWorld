@@ -6,10 +6,6 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
-
-from app.core.config import get_settings
-from app.models.user import User
 
 FRONT_MATTER_BOUNDARY = "---"
 
@@ -25,10 +21,9 @@ class NoteRecord:
 
 
 class FileNotesStore:
-    def __init__(self, db: Session, user: User) -> None:
-        self.db = db
-        self.user = user
-        self.root_path = Path(get_settings().notes_root_path)
+    def __init__(self, user_id: str, root_path: Path) -> None:
+        self.user_id = user_id
+        self.root_path = root_path
 
     def list_notes(self, *, q: str | None, date_from: date | None, date_to: date | None) -> list[NoteRecord]:
         items = [self._parse_note_file(path) for path in self._user_root().glob("*/*.md")]
@@ -92,6 +87,12 @@ class FileNotesStore:
         note_path.unlink()
         self._cleanup_empty_dirs(note_path.parent)
 
+    def delete_all_for_user(self) -> None:
+        import shutil
+        user_root = self._user_root()
+        if user_root.exists():
+            shutil.rmtree(user_root)
+
     def _require_note(self, note_path: Path) -> NoteRecord:
         parsed = self._parse_note_file(note_path)
         if parsed is None:
@@ -103,7 +104,7 @@ class FileNotesStore:
         metadata = {
             "id": record.id,
             "note_date": record.note_date.isoformat(),
-            "user_id": self.user.user_id,
+            "user_id": self.user_id,
             "title": record.title,
             "created_at": record.created_at.isoformat(),
             "updated_at": record.updated_at.isoformat(),
@@ -138,10 +139,10 @@ class FileNotesStore:
         except (KeyError, TypeError, ValueError, json.JSONDecodeError):
             return None
 
-        if metadata.get("user_id") != self.user.user_id:
+        if metadata.get("user_id") != self.user_id:
             return None
 
-        body_markdown = content[metadata_end + len(separator) :]
+        body_markdown = content[metadata_end + len(separator):]
         if body_markdown.startswith("\n"):
             body_markdown = body_markdown[1:]
 
@@ -165,7 +166,7 @@ class FileNotesStore:
         return self._note_path(note_date)
 
     def _user_root(self) -> Path:
-        return self.root_path / self.user.user_id
+        return self.root_path / self.user_id
 
     def _cleanup_empty_dirs(self, path: Path) -> None:
         user_root = self._user_root()

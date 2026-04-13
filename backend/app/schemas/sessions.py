@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class SessionItem(BaseModel):
-    id: int
+    id: str
     user_id: str
     display_name: str
     check_in_at: datetime

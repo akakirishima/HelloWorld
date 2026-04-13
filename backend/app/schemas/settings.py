@@ -36,19 +36,3 @@ class RoomListResponse(BaseModel):
     items: list[RoomResponse]
 
 
-class NoteSheetBindingItem(BaseModel):
-    user_id: str
-    display_name: str
-    spreadsheet_id: str
-    sheet_name: str
-    is_active: bool
-
-
-class NoteSheetBindingListResponse(BaseModel):
-    items: list[NoteSheetBindingItem]
-
-
-class NoteSheetBindingUpdateRequest(BaseModel):
-    spreadsheet_id: str | None = None
-    sheet_name: str | None = None
-    is_active: bool | None = None

@@ -4,40 +4,36 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from app.api.deps import ActiveUser, CurrentUser, DbSession
+from app.api.deps import ActiveUser, AppStores, CurrentUser
 from app.core.security import get_password_hash, verify_password
-from app.models.user import User
+from app.models.user import UserRecord
 from app.schemas.auth import AuthStatusResponse, ChangePasswordRequest, LoginRequest, MeResponse
-from app.services.attendance_service import normalize_datetime
 from app.services.audit_service import create_audit_log
+from app.services.attendance_service import normalize_datetime
 
 router = APIRouter(prefix="/auth")
 
 
 @router.post("/login", response_model=AuthStatusResponse)
-def login(payload: LoginRequest, request: Request, db: DbSession) -> AuthStatusResponse:
-    user = db.query(User).filter(User.user_id == payload.user_id).one_or_none()
+def login(payload: LoginRequest, request: Request, stores: AppStores) -> AuthStatusResponse:
+    user = stores.users.get_by_user_id(payload.user_id)
 
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive.")
 
-    user.last_login_at = datetime.now(timezone.utc)
-    request.session["user_id"] = user.id
-    db.commit()
+    updated = stores.users.save(user.model_copy(update={"last_login_at": datetime.now(timezone.utc)}))
+    request.session["user_id"] = updated.user_id
 
     create_audit_log(
-        db,
-        actor_user_id=user.id,
+        stores.audit,
+        actor_user_id=updated.user_id,
         action="auth_login",
         target_type="users",
-        target_id=user.user_id,
+        target_id=updated.user_id,
     )
-    db.commit()
-    db.refresh(user)
-
-    return AuthStatusResponse(message="Logged in.", user=serialize_user(user))
+    return AuthStatusResponse(message="Logged in.", user=serialize_user(updated))
 
 
 @router.post("/logout", response_model=AuthStatusResponse)
@@ -54,29 +50,27 @@ def me(user: CurrentUser) -> MeResponse:
 @router.post("/change-password", response_model=AuthStatusResponse)
 def change_password(
     payload: ChangePasswordRequest,
-    db: DbSession,
+    stores: AppStores,
     user: CurrentUser,
 ) -> AuthStatusResponse:
     if not verify_password(payload.current_password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect.")
 
-    user.password_hash = get_password_hash(payload.new_password)
-    user.must_change_password = False
-    db.flush()
+    updated = stores.users.save(user.model_copy(update={
+        "password_hash": get_password_hash(payload.new_password),
+        "must_change_password": False,
+    }))
     create_audit_log(
-        db,
-        actor_user_id=user.id,
+        stores.audit,
+        actor_user_id=updated.user_id,
         action="auth_change_password",
         target_type="users",
-        target_id=user.user_id,
+        target_id=updated.user_id,
     )
-    db.commit()
-    db.refresh(user)
-
-    return AuthStatusResponse(message="Password updated.", user=serialize_user(user))
+    return AuthStatusResponse(message="Password updated.", user=serialize_user(updated))
 
 
-def serialize_user(user: User) -> MeResponse:
+def serialize_user(user: UserRecord) -> MeResponse:
     return MeResponse(
         user_id=user.user_id,
         full_name=user.full_name,

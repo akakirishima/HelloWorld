@@ -1,19 +1,14 @@
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
-
-from sqlalchemy.orm import Session
+from pathlib import Path
 
 from app.core.constants import PresenceStatus, UserRole
 from app.core.security import get_password_hash
-from app.models.lab import Lab
-from app.models.note import Note
-from app.models.presence_latest import PresenceLatest
-from app.models.room import Room
-from app.models.session import Session as AttendanceSession
-from app.models.status_change import StatusChange
-from app.models.user import User
-from app.repositories.user_repository import UserRepository
+from app.models.presence_latest import PresenceRecord
+from app.models.session import SessionRecord
+from app.store import Stores, make_stores
 
 LAB_NAME = "情報処理研究室"
 
@@ -279,134 +274,60 @@ SAMPLE_USERS = (
 )
 
 
-def seed_sample_data(session: Session) -> None:
-    repository = UserRepository(session)
-    lab = session.query(Lab).order_by(Lab.id.asc()).first()
+def seed_sample_data(stores: Stores) -> None:
+    # すでにユーザーが存在する場合はスキップ
+    if stores.users.list_all():
+        return
 
-    if lab is None:
-        lab = Lab(name=LAB_NAME)
-        session.add(lab)
-        session.flush()
-    elif lab.name != LAB_NAME:
-        lab.name = LAB_NAME
+    _lab, rooms = stores.rooms.ensure_lab_and_rooms(LAB_NAME, list(ROOMS))
+    rooms_by_name = {r.name: r for r in rooms}
 
-    rooms_by_name: dict[str, Room] = {}
-    existing_rooms = (
-        session.query(Room).filter(Room.lab_id == lab.id).order_by(Room.display_order.asc(), Room.id.asc()).all()
-    )
-    for index, payload in enumerate(ROOMS):
-        room = existing_rooms[index] if index < len(existing_rooms) else None
-        if room is None:
-            room = Room(
-                lab_id=lab.id,
-                name=payload["name"],
-                display_order=payload["display_order"],
-                is_active=True,
-            )
-            session.add(room)
-            session.flush()
-        else:
-            room.name = payload["name"]
-            room.display_order = payload["display_order"]
-            room.is_active = True
-        rooms_by_name[room.name] = room
-
-    allowed_user_ids = {payload["user_id"] for payload in SAMPLE_USERS}
-    stale_user_ids = [
-        row[0] for row in session.query(User.id).filter(User.user_id.not_in(allowed_user_ids)).all()
-    ]
-    if stale_user_ids:
-        session.query(NoteSheetBinding).filter(NoteSheetBinding.user_id.in_(stale_user_ids)).delete(
-            synchronize_session=False
-        )
-        session.query(UserGoogleToken).filter(UserGoogleToken.user_id.in_(stale_user_ids)).delete(
-            synchronize_session=False
-        )
-        session.query(Note).filter(Note.user_id.in_(stale_user_ids)).delete(synchronize_session=False)
-        session.query(StatusChange).filter(StatusChange.user_id.in_(stale_user_ids)).delete(
-            synchronize_session=False
-        )
-        session.query(StatusChange).filter(StatusChange.changed_by.in_(stale_user_ids)).update(
-            {StatusChange.changed_by: None},
-            synchronize_session=False,
-        )
-        session.query(AttendanceSession).filter(AttendanceSession.user_id.in_(stale_user_ids)).delete(
-            synchronize_session=False
-        )
-        session.query(PresenceLatest).filter(PresenceLatest.user_id.in_(stale_user_ids)).delete(
-            synchronize_session=False
-        )
-        session.query(User).filter(User.id.in_(stale_user_ids)).delete(synchronize_session=False)
-        session.flush()
-
-    extra_room_ids = [room.id for room in existing_rooms[len(ROOMS) :]]
-    if extra_room_ids:
-        session.query(User).filter(User.room_id.in_(extra_room_ids)).update(
-            {User.room_id: None},
-            synchronize_session=False,
-        )
-        session.query(Room).filter(Room.id.in_(extra_room_ids)).delete(synchronize_session=False)
-    session.flush()
+    now = datetime.now(timezone.utc)
+    from app.models.user import UserRecord
 
     for payload in SAMPLE_USERS:
-        user = repository.get_by_user_id(payload["user_id"])
-        if user is None:
-            user = User(
-                user_id=payload["user_id"],
-                full_name=payload["full_name"],
-                display_name=payload["display_name"],
-                password_hash=get_password_hash(payload["password"]),
-                role=payload["role"],
-                affiliation="",
-                academic_year=payload["academic_year"],
-                room_id=rooms_by_name[payload["room_name"]].id,
-                must_change_password=payload["must_change_password"],
-                is_active=True,
-            )
-            repository.save(user)
-        else:
-            user.full_name = payload["full_name"]
-            user.display_name = payload["display_name"]
-            user.role = payload["role"]
-            user.affiliation = ""
-            user.academic_year = payload["academic_year"]
-            user.room_id = rooms_by_name[payload["room_name"]].id
-            user.must_change_password = payload["must_change_password"]
-            user.is_active = True
-
-        if user.presence is None:
-            presence = PresenceLatest(
-                user_id=user.id,
-                current_status=payload["current_status"],
-                current_session_id=None,
-                last_changed_at=datetime.now(timezone.utc),
-            )
-            session.add(presence)
-            session.flush()
-        else:
-            presence = user.presence
-            presence.current_status = payload["current_status"]
-            presence.last_changed_at = datetime.now(timezone.utc)
-
-        open_session = (
-            session.query(AttendanceSession)
-            .filter(AttendanceSession.user_id == user.id, AttendanceSession.check_out_at.is_(None))
-            .order_by(AttendanceSession.check_in_at.desc())
-            .first()
+        room = rooms_by_name[payload["room_name"]]
+        user = UserRecord(
+            user_id=payload["user_id"],
+            full_name=payload["full_name"],
+            display_name=payload["display_name"],
+            password_hash=get_password_hash(payload["password"]),
+            role=payload["role"],
+            affiliation="",
+            academic_year=payload["academic_year"],
+            room_id=room.id,
+            must_change_password=payload["must_change_password"],
+            is_active=True,
+            created_at=now,
+            updated_at=now,
         )
-        if presence.current_status != PresenceStatus.OFF_CAMPUS.value:
-            if open_session is None:
-                open_session = AttendanceSession(
-                    user_id=user.id,
-                    check_in_at=datetime.now(timezone.utc),
-                    check_out_at=None,
-                    duration_sec=None,
-                    close_reason=None,
-                )
-                session.add(open_session)
-                session.flush()
-            presence.current_session_id = open_session.id
-        else:
-            presence.current_session_id = None
+        stores.users.save(user)
 
-    session.commit()
+        current_status = payload["current_status"]
+        session_id = None
+        if current_status != PresenceStatus.OFF_CAMPUS.value:
+            session = SessionRecord(
+                id=str(uuid.uuid4()),
+                user_id=user.user_id,
+                check_in_at=now,
+                check_out_at=None,
+                duration_sec=None,
+                close_reason=None,
+                created_at=now,
+                updated_at=now,
+            )
+            session = stores.sessions.add(session)
+            session_id = session.id
+
+        stores.presence.save(PresenceRecord(
+            user_id=user.user_id,
+            current_status=current_status,
+            current_session_id=session_id,
+            last_changed_at=now,
+            updated_at=now,
+        ))
+
+
+def run_seed(root: Path) -> None:
+    stores = make_stores(root)
+    seed_sample_data(stores)

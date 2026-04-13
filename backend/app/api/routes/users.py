@@ -1,34 +1,44 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import AdminUser, DbSession
+from app.api.deps import AdminUser, AppStores
+from app.core.config import get_settings
 from app.core.security import get_password_hash
-from app.models.presence_latest import PresenceLatest
-from app.models.room import Room
-from app.models.user import User
+from app.models.presence_latest import PresenceRecord
+from app.models.user import UserRecord
 from app.schemas.users import CreateUserRequest, UpdateUserRequest, UserListResponse, UserResponse
 from app.services.attendance_service import normalize_datetime
 from app.services.audit_service import create_audit_log
+from app.services.file_notes_service import FileNotesStore
 
 router = APIRouter(prefix="/users")
 
 
 @router.get("", response_model=UserListResponse)
-def list_users(_: AdminUser, db: DbSession) -> UserListResponse:
-    users = db.query(User).order_by(User.role.desc(), User.display_name.asc()).all()
-    return UserListResponse(items=[serialize_user(user) for user in users])
+def list_users(_: AdminUser, stores: AppStores) -> UserListResponse:
+    users = sorted(
+        stores.users.list_all(),
+        key=lambda u: (u.role != "admin", u.display_name),
+    )
+    presences = {p.user_id: p for p in stores.presence.list_all()}
+    rooms = {r.id: r for r in stores.rooms.list_rooms()}
+    return UserListResponse(items=[serialize_user(u, presences.get(u.user_id), rooms) for u in users])
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def create_user(payload: CreateUserRequest, admin: AdminUser, db: DbSession) -> UserResponse:
-    if db.query(User).filter(User.user_id == payload.user_id).one_or_none() is not None:
+def create_user(payload: CreateUserRequest, admin: AdminUser, stores: AppStores) -> UserResponse:
+    if stores.users.get_by_user_id(payload.user_id) is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="user_id already exists.")
 
-    room = resolve_room(db, payload.room_id)
-    user = User(
+    if payload.room_id is not None and stores.rooms.get_room(payload.room_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found.")
+
+    now = datetime.now(timezone.utc)
+    user = UserRecord(
         user_id=payload.user_id,
         full_name=payload.full_name,
         display_name=payload.display_name,
@@ -36,32 +46,31 @@ def create_user(payload: CreateUserRequest, admin: AdminUser, db: DbSession) -> 
         role=payload.role,
         affiliation="",
         academic_year=payload.academic_year,
-        room_id=room.id if room else None,
+        room_id=payload.room_id,
         must_change_password=True,
         is_active=payload.is_active,
+        created_at=now,
+        updated_at=now,
     )
-    db.add(user)
-    db.flush()
-    db.add(
-        PresenceLatest(
-            user_id=user.id,
-            current_status="Off Campus",
-            current_session_id=None,
-            last_changed_at=datetime.now(timezone.utc),
-        )
-    )
-    db.flush()
+    user = stores.users.save(user)
+    stores.presence.save(PresenceRecord(
+        user_id=user.user_id,
+        current_status="Off Campus",
+        current_session_id=None,
+        last_changed_at=now,
+        updated_at=now,
+    ))
     create_audit_log(
-        db,
-        actor_user_id=admin.id,
+        stores.audit,
+        actor_user_id=admin.user_id,
         action="user_create",
         target_type="users",
         target_id=user.user_id,
         after_json={"user_id": user.user_id, "room_id": user.room_id, "role": user.role},
     )
-    db.commit()
-    db.refresh(user)
-    return serialize_user(user)
+    rooms = {r.id: r for r in stores.rooms.list_rooms()}
+    presences = {p.user_id: p for p in stores.presence.list_all()}
+    return serialize_user(user, presences.get(user.user_id), rooms)
 
 
 @router.patch("/{user_id}", response_model=UserResponse)
@@ -69,66 +78,101 @@ def update_user(
     user_id: str,
     payload: UpdateUserRequest,
     admin: AdminUser,
-    db: DbSession,
+    stores: AppStores,
 ) -> UserResponse:
-    user = db.query(User).filter(User.user_id == user_id).one_or_none()
+    user = stores.users.get_by_user_id(user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
-    before = serialize_user(user).model_dump()
+    rooms = {r.id: r for r in stores.rooms.list_rooms()}
+    presences = {p.user_id: p for p in stores.presence.list_all()}
+    before = serialize_user(user, presences.get(user.user_id), rooms).model_dump()
+
     data = payload.model_dump(exclude_unset=True)
 
     if "room_id" in data:
-        room = resolve_room(db, data["room_id"])
-        user.room_id = room.id if room else None
-        data.pop("room_id")
+        room_id = data.pop("room_id")
+        if room_id is not None and stores.rooms.get_room(room_id) is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found.")
+        data["room_id"] = room_id
 
     if "password" in data:
-        user.password_hash = get_password_hash(data.pop("password"))
-        user.must_change_password = True
+        data["password_hash"] = get_password_hash(data.pop("password"))
+        data["must_change_password"] = True
 
-    for field, value in data.items():
-        setattr(user, field, value)
-
-    db.flush()
+    user = stores.users.save(user.model_copy(update=data))
     create_audit_log(
-        db,
-        actor_user_id=admin.id,
+        stores.audit,
+        actor_user_id=admin.user_id,
         action="user_update",
         target_type="users",
         target_id=user.user_id,
         before_json=before,
-        after_json=serialize_user(user).model_dump(),
+        after_json=serialize_user(user, presences.get(user.user_id), rooms).model_dump(),
     )
-    db.commit()
-    db.refresh(user)
-    return serialize_user(user)
+    return serialize_user(user, presences.get(user.user_id), rooms)
 
 
-@router.post("/{user_id}/disable", response_model=UserResponse)
-def disable_user(user_id: str, admin: AdminUser, db: DbSession) -> UserResponse:
-    user = db.query(User).filter(User.user_id == user_id).one_or_none()
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(user_id: str, admin: AdminUser, stores: AppStores) -> None:
+    user = stores.users.get_by_user_id(user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
-    before = serialize_user(user).model_dump()
-    user.is_active = False
-    db.flush()
+    # ガードレール①: 自分自身は削除不可
+    if admin.user_id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete your own account.",
+        )
+
+    # ガードレール②: 最後の管理者は削除不可
+    if user.role == "admin":
+        admin_count = sum(1 for u in stores.users.list_all() if u.role == "admin")
+        if admin_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot delete the last administrator.",
+            )
+
+    # 開いているセッションを強制クローズ
+    open_session = stores.sessions.get_open_session(user_id)
+    if open_session is not None:
+        now = datetime.now(timezone.utc)
+        duration = int((now - open_session.check_in_at).total_seconds())
+        stores.sessions.update(open_session.model_copy(update={
+            "check_out_at": now,
+            "duration_sec": duration,
+            "close_reason": "user_deleted",
+        }))
+
+    # 削除操作を監査ログに記録（NAS CSVには残る）
     create_audit_log(
-        db,
-        actor_user_id=admin.id,
-        action="user_disable",
+        stores.audit,
+        actor_user_id=admin.user_id,
+        action="user_delete",
         target_type="users",
-        target_id=user.user_id,
-        before_json=before,
-        after_json=serialize_user(user).model_dump(),
+        target_id=user_id,
+        before_json={"user_id": user_id, "display_name": user.display_name},
     )
-    db.commit()
-    db.refresh(user)
-    return serialize_user(user)
+
+    # 全関連データを削除（末梢 → 中心の順）
+    settings = get_settings()
+    notes_root = Path(settings.data_root_path) / "notes"
+    FileNotesStore(user_id=user_id, root_path=notes_root).delete_all_for_user()
+    stores.status_changes.delete_by_user(user_id)
+    stores.sessions.delete_by_user(user_id)
+    stores.audit.delete_by_user(user_id)
+    stores.presence.delete(user_id)
+    stores.users.delete(user_id)
 
 
-def serialize_user(user: User) -> UserResponse:
+def serialize_user(
+    user: UserRecord,
+    presence: PresenceRecord | None,
+    rooms: dict[int, object],
+) -> UserResponse:
+    room = rooms.get(user.room_id) if user.room_id else None
     return UserResponse(
         user_id=user.user_id,
         full_name=user.full_name,
@@ -136,23 +180,12 @@ def serialize_user(user: User) -> UserResponse:
         role=user.role,
         academic_year=user.academic_year,
         room_id=user.room_id,
-        room_name=user.room.name if user.room else None,
+        room_name=room.name if room else None,
         is_active=user.is_active,
         must_change_password=user.must_change_password,
         last_login_at=normalize_datetime(user.last_login_at) if user.last_login_at else None,
         presence={
-            "current_status": user.presence.current_status,
-            "last_changed_at": normalize_datetime(user.presence.last_changed_at),
-        }
-        if user.presence
-        else None,
+            "current_status": presence.current_status,
+            "last_changed_at": normalize_datetime(presence.last_changed_at),
+        } if presence else None,
     )
-
-
-def resolve_room(db: DbSession, room_id: int | None) -> Room | None:
-    if room_id is None:
-        return None
-    room = db.get(Room, room_id)
-    if room is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found.")
-    return room

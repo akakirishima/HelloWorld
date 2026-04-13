@@ -92,7 +92,7 @@ type LabBoardContextValue = {
   updateUserRole: (userId: string, role: "admin" | "member") => Promise<void>;
   updateUserRoom: (userId: string, roomId: string | null) => Promise<void>;
   updateUserGrade: (userId: string, academicGrade: AcademicGrade) => Promise<void>;
-  updateUserActive: (userId: string, isActive: boolean) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
   createUser: (payload: CreateUserPayload) => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -251,16 +251,9 @@ export function LabBoardProvider({ children }: { children: ReactNode }) {
       async updateUserGrade(userId, academicGrade) {
         await patchUser(userId, { academic_year: academicGrade });
       },
-      async updateUserActive(userId, isActive) {
-        if (!isActive) {
-          await apiFetch<UserResponse>(`/users/${userId}/disable`, {
-            method: "POST",
-          });
-          await refreshFromApi();
-          return;
-        }
-
-        await patchUser(userId, { is_active: true });
+      async deleteUser(userId) {
+        await apiFetch(`/users/${userId}`, { method: "DELETE" });
+        await refreshFromApi();
       },
       async createUser(payload) {
         await apiFetch<UserResponse>("/users", {

@@ -1,15 +1,4 @@
 services:
-  postgres:
-    image: postgres:17-alpine
-    platform: linux/arm64
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-labapp}
-      POSTGRES_USER: ${POSTGRES_USER:-labapp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-labapp-change-me}
-    volumes:
-      - ${QNAP_APP_ROOT}/postgres:/var/lib/postgresql/data
-    restart: unless-stopped
-
   backend:
     build:
       context: ./backend
@@ -17,21 +6,15 @@ services:
     platform: linux/arm64
     environment:
       APP_ENV: production
-      APP_BASE_URL: http://172.16.1.10:8088
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-labapp}:${POSTGRES_PASSWORD:-labapp-change-me}@postgres:5432/${POSTGRES_DB:-labapp}
+      APP_BASE_URL: ${APP_BASE_URL:-http://172.16.1.10:8088}
+      DATA_ROOT_PATH: /app/data/nas
+      SQLITE_PATH: ${SQLITE_PATH:-/app/data/local.db}
       SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:-change-me-for-production}
-      CORS_ORIGINS: http://172.16.1.10:8088
-      NOTES_STORAGE_MODE: file
-      NOTES_ROOT_PATH: /app/data/reports
-      BACKUP_ROOT_PATH: /app/data/backups
-      BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-30}
-      ALLOWED_SUBNETS: 172.16.1.0/24
+      CORS_ORIGINS: ${APP_BASE_URL:-http://172.16.1.10:8088}
+      ALLOWED_SUBNETS: ${ALLOWED_SUBNETS:-172.16.1.0/24}
       AUTO_SEED: "false"
     volumes:
-      - ${QNAP_APP_ROOT}/reports:/app/data/reports
-      - ${QNAP_APP_ROOT}/backups:/app/data/backups
-    depends_on:
-      - postgres
+      - ${QNAP_APP_ROOT}:/app/data/nas
     restart: unless-stopped
 
   frontend:

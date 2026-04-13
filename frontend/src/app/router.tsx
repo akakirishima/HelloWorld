@@ -6,6 +6,7 @@ import { AdminAggregatesPage } from "@/pages/admin-aggregates-page";
 import { AdminAuditLogsPage } from "@/pages/admin-audit-logs-page";
 import { AdminCorrectionsPage } from "@/pages/admin-corrections-page";
 import { AdminSettingsPage } from "@/pages/admin-settings-page";
+import { AdminUserDeletePage } from "@/pages/admin-user-delete-page";
 import { AdminUsersPage } from "@/pages/admin-users-page";
 import { ChangePasswordPage } from "@/pages/change-password-page";
 import { DashboardBoardPage } from "@/pages/dashboard-board-page";
@@ -54,6 +55,10 @@ export const router = createBrowserRouter([
       {
         path: "admin/users",
         element: <AdminUsersPage />,
+      },
+      {
+        path: "admin/users/delete/:userId",
+        element: <AdminUserDeletePage />,
       },
       {
         path: "admin/settings",

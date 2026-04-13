@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session as DbSession
 
 from app.core.constants import PresenceStatus, SessionCloseReason, UserRole
-from app.models.presence_latest import PresenceLatest
-from app.models.session import Session
-from app.models.status_change import StatusChange
-from app.models.user import User
+from app.models.presence_latest import PresenceRecord
+from app.models.session import SessionRecord
+from app.models.status_change import StatusChangeRecord
+from app.models.user import UserRecord
 from app.services.audit_service import create_audit_log
+from app.store import Stores
 
 ACTIVE_WORK_STATUSES = {
     PresenceStatus.ROOM.value,
@@ -23,14 +24,14 @@ ACTIVE_WORK_STATUSES = {
 ALL_STATUSES = ACTIVE_WORK_STATUSES | {PresenceStatus.OFF_CAMPUS.value}
 
 
-def resolve_target_user(db: DbSession, actor: User, target_user_id: str | None) -> User:
+def resolve_target_user(stores: Stores, actor: UserRecord, target_user_id: str | None) -> UserRecord:
     if target_user_id is None or target_user_id == actor.user_id:
         return actor
 
     if actor.role != UserRole.ADMIN.value:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot update another user.")
 
-    target = db.query(User).filter(User.user_id == target_user_id).one_or_none()
+    target = stores.users.get_by_user_id(target_user_id)
     if target is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found.")
     if not target.is_active:
@@ -38,37 +39,13 @@ def resolve_target_user(db: DbSession, actor: User, target_user_id: str | None) 
     return target
 
 
-def ensure_presence(db: DbSession, user: User) -> PresenceLatest:
-    if user.presence is not None:
-        return user.presence
-
-    presence = PresenceLatest(
-        user_id=user.id,
-        current_status=PresenceStatus.OFF_CAMPUS.value,
-        current_session_id=None,
-        last_changed_at=datetime.now(timezone.utc),
-    )
-    db.add(presence)
-    db.flush()
-    return presence
-
-
-def get_open_session(db: DbSession, user: User) -> Session | None:
-    return (
-        db.query(Session)
-        .filter(Session.user_id == user.id, Session.check_out_at.is_(None))
-        .order_by(Session.check_in_at.desc())
-        .first()
-    )
-
-
 def check_in(
-    db: DbSession,
+    stores: Stores,
     *,
-    actor: User,
-    target: User,
+    actor: UserRecord,
+    target: UserRecord,
     initial_status: str,
-) -> PresenceLatest:
+) -> PresenceRecord:
     validate_status(initial_status)
     if initial_status == PresenceStatus.OFF_CAMPUS.value:
         raise HTTPException(
@@ -76,8 +53,8 @@ def check_in(
             detail="Cannot check in with Off Campus status.",
         )
 
-    presence = ensure_presence(db, target)
-    open_session = get_open_session(db, target)
+    presence = stores.presence.ensure(target.user_id)
+    open_session = stores.sessions.get_open_session(target.user_id)
 
     if open_session is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already checked in.")
@@ -88,53 +65,56 @@ def check_in(
         )
 
     now = datetime.now(timezone.utc)
-    session = Session(
-        user_id=target.id,
+    session = SessionRecord(
+        id=str(uuid.uuid4()),
+        user_id=target.user_id,
         check_in_at=now,
         check_out_at=None,
         duration_sec=None,
         close_reason=None,
+        created_at=now,
+        updated_at=now,
     )
-    db.add(session)
-    db.flush()
+    session = stores.sessions.add(session)
 
     from_status = presence.current_status
-    presence.current_status = initial_status
-    presence.current_session_id = session.id
-    presence.last_changed_at = now
-
-    db.add(
-        StatusChange(
-            user_id=target.id,
-            session_id=session.id,
-            from_status=from_status,
-            to_status=initial_status,
-            changed_at=now,
-            changed_by=actor.id,
-            source="web",
-        )
+    presence = stores.presence.save(
+        presence.model_copy(update={
+            "current_status": initial_status,
+            "current_session_id": session.id,
+            "last_changed_at": now,
+        })
     )
+
+    stores.status_changes.append(StatusChangeRecord(
+        id=str(uuid.uuid4()),
+        user_id=target.user_id,
+        session_id=session.id,
+        from_status=from_status,
+        to_status=initial_status,
+        changed_at=now,
+        changed_by=actor.user_id,
+        source="web",
+    ))
     create_audit_log(
-        db,
-        actor_user_id=actor.id,
+        stores.audit,
+        actor_user_id=actor.user_id,
         action="check_in",
         target_type="users",
         target_id=target.user_id,
         after_json={"status": presence.current_status, "session_id": session.id},
     )
-    db.commit()
-    db.refresh(target)
-    return target.presence
+    return presence
 
 
 def check_out(
-    db: DbSession,
+    stores: Stores,
     *,
-    actor: User,
-    target: User,
-) -> PresenceLatest:
-    presence = ensure_presence(db, target)
-    open_session = get_open_session(db, target)
+    actor: UserRecord,
+    target: UserRecord,
+) -> PresenceRecord:
+    presence = stores.presence.ensure(target.user_id)
+    open_session = stores.sessions.get_open_session(target.user_id)
     if open_session is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active session to check out.")
 
@@ -146,46 +126,52 @@ def check_out(
             detail="check_out_at cannot be earlier than check_in_at.",
         )
 
-    open_session.check_out_at = now
-    open_session.duration_sec = int((now - check_in_at).total_seconds())
-    open_session.close_reason = SessionCloseReason.MANUAL_CHECKOUT.value
+    duration_sec = int((now - check_in_at).total_seconds())
+    updated_session = stores.sessions.update(
+        open_session.model_copy(update={
+            "check_out_at": now,
+            "duration_sec": duration_sec,
+            "close_reason": SessionCloseReason.MANUAL_CHECKOUT.value,
+        })
+    )
 
     from_status = presence.current_status
-    presence.current_status = PresenceStatus.OFF_CAMPUS.value
-    presence.current_session_id = None
-    presence.last_changed_at = now
-
-    db.add(
-        StatusChange(
-            user_id=target.id,
-            session_id=open_session.id,
-            from_status=from_status,
-            to_status=PresenceStatus.OFF_CAMPUS.value,
-            changed_at=now,
-            changed_by=actor.id,
-            source="web",
-        )
+    presence = stores.presence.save(
+        presence.model_copy(update={
+            "current_status": PresenceStatus.OFF_CAMPUS.value,
+            "current_session_id": None,
+            "last_changed_at": now,
+        })
     )
+
+    stores.status_changes.append(StatusChangeRecord(
+        id=str(uuid.uuid4()),
+        user_id=target.user_id,
+        session_id=updated_session.id,
+        from_status=from_status,
+        to_status=PresenceStatus.OFF_CAMPUS.value,
+        changed_at=now,
+        changed_by=actor.user_id,
+        source="web",
+    ))
     create_audit_log(
-        db,
-        actor_user_id=actor.id,
+        stores.audit,
+        actor_user_id=actor.user_id,
         action="check_out",
         target_type="users",
         target_id=target.user_id,
-        after_json={"status": presence.current_status, "session_id": open_session.id},
+        after_json={"status": presence.current_status, "session_id": updated_session.id},
     )
-    db.commit()
-    db.refresh(target)
-    return target.presence
+    return presence
 
 
 def change_status(
-    db: DbSession,
+    stores: Stores,
     *,
-    actor: User,
-    target: User,
+    actor: UserRecord,
+    target: UserRecord,
     to_status: str,
-) -> PresenceLatest:
+) -> PresenceRecord:
     validate_status(to_status)
     if to_status == PresenceStatus.OFF_CAMPUS.value:
         raise HTTPException(
@@ -193,8 +179,8 @@ def change_status(
             detail="Use check-out API to move to Off Campus.",
         )
 
-    presence = ensure_presence(db, target)
-    open_session = get_open_session(db, target)
+    presence = stores.presence.ensure(target.user_id)
+    open_session = stores.sessions.get_open_session(target.user_id)
     if open_session is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is not checked in.")
 
@@ -203,116 +189,121 @@ def change_status(
         return presence
 
     now = datetime.now(timezone.utc)
-    presence.current_status = to_status
-    presence.current_session_id = open_session.id
-    presence.last_changed_at = now
-
-    db.add(
-        StatusChange(
-            user_id=target.id,
-            session_id=open_session.id,
-            from_status=from_status,
-            to_status=to_status,
-            changed_at=now,
-            changed_by=actor.id,
-            source="web",
-        )
+    presence = stores.presence.save(
+        presence.model_copy(update={
+            "current_status": to_status,
+            "current_session_id": open_session.id,
+            "last_changed_at": now,
+        })
     )
+
+    stores.status_changes.append(StatusChangeRecord(
+        id=str(uuid.uuid4()),
+        user_id=target.user_id,
+        session_id=open_session.id,
+        from_status=from_status,
+        to_status=to_status,
+        changed_at=now,
+        changed_by=actor.user_id,
+        source="web",
+    ))
     create_audit_log(
-        db,
-        actor_user_id=actor.id,
+        stores.audit,
+        actor_user_id=actor.user_id,
         action="status_change",
         target_type="users",
         target_id=target.user_id,
         before_json={"status": from_status},
         after_json={"status": to_status, "session_id": open_session.id},
     )
-    db.commit()
-    db.refresh(target)
-    return target.presence
+    return presence
 
 
 def patch_session_by_admin(
-    db: DbSession,
+    stores: Stores,
     *,
-    actor: User,
-    session_obj: Session,
+    actor: UserRecord,
+    session_obj: SessionRecord,
     reason: str,
     check_in_at: datetime | None,
     check_out_at_set: bool,
     check_out_at: datetime | None,
-) -> Session:
+) -> SessionRecord:
     before = serialize_session(session_obj)
 
+    updated = session_obj
     if check_in_at is not None:
-        session_obj.check_in_at = check_in_at
+        updated = updated.model_copy(update={"check_in_at": check_in_at})
 
     if check_out_at_set:
-        if check_out_at is None and session_obj.check_out_at is not None:
+        if check_out_at is None and updated.check_out_at is not None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Reopening a closed session is not supported.",
             )
-        session_obj.check_out_at = check_out_at
+        updated = updated.model_copy(update={"check_out_at": check_out_at})
 
-    normalized_check_in = normalize_datetime(session_obj.check_in_at)
-    normalized_check_out = normalize_datetime(session_obj.check_out_at) if session_obj.check_out_at else None
+    normalized_check_in = normalize_datetime(updated.check_in_at)
+    normalized_check_out = normalize_datetime(updated.check_out_at) if updated.check_out_at else None
     if normalized_check_out is not None and normalized_check_out < normalized_check_in:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="check_out_at cannot be earlier than check_in_at.",
         )
 
-    if session_obj.check_out_at is None:
-        session_obj.duration_sec = None
-        session_obj.close_reason = None
+    if updated.check_out_at is None:
+        updated = updated.model_copy(update={"duration_sec": None, "close_reason": None})
     else:
-        session_obj.duration_sec = int((normalized_check_out - normalized_check_in).total_seconds())
-        session_obj.close_reason = SessionCloseReason.ADMIN_CORRECTION.value
+        duration_sec = int((normalized_check_out - normalized_check_in).total_seconds())
+        updated = updated.model_copy(update={
+            "duration_sec": duration_sec,
+            "close_reason": SessionCloseReason.ADMIN_CORRECTION.value,
+        })
 
-    target = session_obj.user
-    presence = ensure_presence(db, target)
+    presence = stores.presence.get(session_obj.user_id)
     if (
-        presence.current_session_id == session_obj.id
-        and session_obj.check_out_at is not None
+        presence is not None
+        and presence.current_session_id == session_obj.id
+        and updated.check_out_at is not None
         and presence.current_status != PresenceStatus.OFF_CAMPUS.value
     ):
         from_status = presence.current_status
-        presence.current_status = PresenceStatus.OFF_CAMPUS.value
-        presence.current_session_id = None
-        presence.last_changed_at = normalized_check_out
-        db.add(
-            StatusChange(
-                user_id=target.id,
-                session_id=session_obj.id,
-                from_status=from_status,
-                to_status=PresenceStatus.OFF_CAMPUS.value,
-                changed_at=normalized_check_out,
-                changed_by=actor.id,
-                source="admin_correction",
-            )
+        stores.presence.save(
+            presence.model_copy(update={
+                "current_status": PresenceStatus.OFF_CAMPUS.value,
+                "current_session_id": None,
+                "last_changed_at": normalized_check_out,
+            })
         )
+        stores.status_changes.append(StatusChangeRecord(
+            id=str(uuid.uuid4()),
+            user_id=session_obj.user_id,
+            session_id=session_obj.id,
+            from_status=from_status,
+            to_status=PresenceStatus.OFF_CAMPUS.value,
+            changed_at=normalized_check_out,
+            changed_by=actor.user_id,
+            source="admin_correction",
+        ))
 
-    db.flush()
+    updated = stores.sessions.update(updated)
     create_audit_log(
-        db,
-        actor_user_id=actor.id,
+        stores.audit,
+        actor_user_id=actor.user_id,
         action="session_patch",
         target_type="sessions",
-        target_id=str(session_obj.id),
+        target_id=str(updated.id),
         before_json=before,
-        after_json=serialize_session(session_obj),
+        after_json=serialize_session(updated),
         reason=reason,
     )
-    db.commit()
-    db.refresh(session_obj)
-    return session_obj
+    return updated
 
 
-def serialize_session(session_obj: Session) -> dict:
+def serialize_session(session_obj: SessionRecord) -> dict:
     return {
         "id": session_obj.id,
-        "user_id": session_obj.user.user_id if session_obj.user else None,
+        "user_id": session_obj.user_id,
         "check_in_at": session_obj.check_in_at,
         "check_out_at": session_obj.check_out_at,
         "duration_sec": session_obj.duration_sec,

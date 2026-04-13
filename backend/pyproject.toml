@@ -9,18 +9,13 @@ description = "Backend for the laboratory presence and attendance MVP."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "alembic>=1.16,<2.0",
   "fastapi>=0.116,<1.0",
-  "google-api-python-client>=2.166,<3.0",
-  "google-auth>=2.39,<3.0",
-  "google-auth-oauthlib>=1.2,<2.0",
   "itsdangerous>=2.2,<3.0",
-  "psycopg[binary]>=3.2,<4.0",
+  "filelock>=3.16,<4.0",
   "pydantic-settings>=2.10,<3.0",
   "pwdlib[argon2]>=0.2,<1.0",
   "python-dotenv>=1.1,<2.0",
   "python-multipart>=0.0.20,<1.0",
-  "sqlalchemy>=2.0.43,<3.0",
   "uvicorn[standard]>=0.35,<1.0",
 ]
 
