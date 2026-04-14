@@ -9,6 +9,7 @@ services:
       APP_BASE_URL: ${APP_BASE_URL:-http://172.16.1.10:8088}
       DATA_ROOT_PATH: /app/data/nas
       SQLITE_PATH: ${SQLITE_PATH:-/app/data/local.db}
+      BACKUP_ROOT_PATH: ${BACKUP_ROOT_PATH:-/app/data/nas/backups}
       SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:-change-me-for-production}
       CORS_ORIGINS: ${APP_BASE_URL:-http://172.16.1.10:8088}
       ALLOWED_SUBNETS: ${ALLOWED_SUBNETS:-172.16.1.0/24}

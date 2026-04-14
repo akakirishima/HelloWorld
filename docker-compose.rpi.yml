@@ -1,0 +1,70 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.qnap
+    platform: linux/arm64
+    environment:
+      APP_ENV: production
+      APP_BASE_URL: ${APP_BASE_URL:-http://raspberrypi.local:8088}
+      DATA_ROOT_PATH: /app/data/nas
+      SQLITE_PATH: ${SQLITE_PATH:-/app/data/sqlite/local.db}
+      BACKUP_ROOT_PATH: ${BACKUP_ROOT_PATH:-/app/data/nas/backups}
+      SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:-change-me-for-production}
+      CORS_ORIGINS: ${APP_BASE_URL:-http://raspberrypi.local:8088}
+      ALLOWED_SUBNETS: ${ALLOWED_SUBNETS:-172.16.1.0/24}
+      AUTO_SEED: "false"
+    volumes:
+      - ${PI_LOCAL_ROOT:-/srv/lab-app/local}/sqlite:/app/data/sqlite
+      - ${NAS_MOUNT_ROOT:-/mnt/lab-app-nas}:/app/data/nas
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from urllib.request import urlopen; import sys; response = urlopen('http://127.0.0.1:8000/api/health'); sys.exit(0 if response.status == 200 else 1)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.qnap
+    platform: linux/arm64
+    environment:
+      VITE_API_BASE_URL: /api
+    depends_on:
+      backend:
+        condition: service_healthy
+    expose:
+      - "4173"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4173/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.8-alpine
+    platform: linux/arm64
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    environment:
+      CADDY_ALLOWED_SUBNETS: ${CADDY_ALLOWED_SUBNETS:-172.16.1.0/24}
+    ports:
+      - "8088:80"
+    volumes:
+      - ./infra/caddy/Caddyfile.rpi:/etc/caddy/Caddyfile:ro
+    restart: unless-stopped

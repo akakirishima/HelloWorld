@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly Lab Management SQLite backup for %i
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+RandomizedDelaySec=10m
+Persistent=true
+Unit=lab-management-backup@%i.service
+
+[Install]
+WantedBy=timers.target

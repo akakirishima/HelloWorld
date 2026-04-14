@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     app_base_url: str = "http://localhost:8088"
     data_root_path: str = "./data/nas"
     sqlite_path: str = "./data/local.db"
+    database_url: str = ""
+    backup_root_path: str = "./data/backups"
+    backup_retention_count: int = 7
     session_secret_key: str = "dev-session-secret-change-me"
     cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:5173", "http://localhost:8088"]

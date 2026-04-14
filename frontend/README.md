@@ -2,4 +2,4 @@
 
 Vite + React + TypeScript frontend for the laboratory presence management MVP.
 
-Use the repository root [README](/Users/kirishima/develop/HelloWorld/README.md) for setup instructions.
+See the repository root `README.md` for setup, local development, and deployment notes.
