@@ -1,7 +1,7 @@
 # Raspberry Pi LAN限定 配置メモ
 
 研究室LAN限定で Raspberry Pi に `frontend + backend + reverse proxy` を載せるときの最小構成です。  
-ここでは Docker は使わず、`systemd + Caddy + frontend build` で常駐させます。
+ここでは Docker は使わず、`systemd + Caddy + frontend build` で常駐させます。アプリ本体は Raspberry Pi に置き、QNAP は使うとしても NAS 保存先としてだけ扱います。
 
 ## 役割分担
 
@@ -14,6 +14,8 @@
   - 日誌 Markdown
   - CSV 長期保存
   - バックアップ世代
+
+NAS は必須ではありません。運用を単純化したい場合は、NAS 側に置いているディレクトリも Raspberry Pi ローカルへ寄せて構いません。
 
 ## ホスト側ディレクトリ
 
@@ -30,7 +32,8 @@
 ```
 
 - `/srv/lab-app/local` は Raspberry Pi ローカル永続領域
-- `/mnt/lab-app-nas` は Raspberry Pi 側でマウント済みの NAS 共有フォルダ
+- `/mnt/lab-app-nas` は Raspberry Pi 側でマウント済みの NAS 共有フォルダの例
+- NAS を使わない場合は、`notes` `sessions` `status_changes` `audit_logs` `backups` も `/srv/lab-app/local` 配下へ寄せてよい
 
 ## 構成ファイル
 
@@ -42,7 +45,7 @@
 
 ## セットアップ
 
-1. NAS 共有を Raspberry Pi 側で `/mnt/lab-app-nas` にマウントする
+1. 必要なら NAS 共有を Raspberry Pi 側で `/mnt/lab-app-nas` にマウントする
 2. Caddy をインストールする
 3. `/srv/lab-app/local/sqlite` と `/srv/lab-app/frontend/dist` を作る
 4. `.env.rpi.example` をコピーして `.env.rpi` を作る
@@ -58,13 +61,19 @@ sudo mkdir -p /srv/lab-app/frontend/dist
 sudo mkdir -p /mnt/lab-app-nas/{notes,sessions,status_changes,audit_logs,backups}
 ```
 
+NAS を使わない場合は、代わりに次のようなローカルディレクトリを作ります。
+
+```bash
+sudo mkdir -p /srv/lab-app/local/{notes,sessions,status_changes,audit_logs,backups}
+```
+
 環境変数:
 
 ```bash
 cp .env.rpi.example .env.rpi
 ```
 
-必要に応じて `BACKUP_RETENTION_COUNT` で保存世代数を調整できます。未指定時は 7 世代を残します。
+必要に応じて `DATA_ROOT_PATH` と `BACKUP_ROOT_PATH` をローカルパスへ変えてください。未指定時の保存世代数は `BACKUP_RETENTION_COUNT=7` です。
 
 Caddy インストール:
 
@@ -124,10 +133,10 @@ sudo systemctl reload caddy
 ## 保存方針
 
 - `SQLite`: Raspberry Pi ローカル
-- `notes`, `sessions`, `status_changes`, `audit_logs`: NAS
-- `backups`: NAS
+- `notes`, `sessions`, `status_changes`, `audit_logs`: NAS または Raspberry Pi ローカル
+- `backups`: NAS または Raspberry Pi ローカル
 
-NAS が一時断した場合は、SQLite を使う API の継続を優先する想定です。NAS 保存が必要な処理は失敗をログで追える前提で運用します。
+NAS が一時断した場合は、SQLite を使う API の継続を優先する想定です。NAS 保存が必要な処理は失敗をログで追える前提で運用します。NAS を使わない場合はこの考慮は不要です。
 
 ## 運用
 

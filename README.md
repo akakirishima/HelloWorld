@@ -1,71 +1,61 @@
 # 研究室 在室・勤怠・日誌管理システム
 
 React + FastAPI を前提にした、研究室向けの在室・勤怠・日誌管理アプリです。  
-フロントエンド、API、QNAP 向け Docker 構成、Raspberry Pi 向けネイティブ運用構成をこのリポジトリで管理します。
+本リポジトリの本番前提は、Raspberry Pi に `frontend + backend + Caddy` を載せるネイティブ運用です。Docker は必須ではなく、QNAP は使うとしても保存先 NAS としてだけ扱います。
 
-## セットアップ済みの内容
+## このリポジトリにあるもの
 
 - `frontend/`: Vite + React + TypeScript + React Router + TanStack Query + React Hook Form + Zod + Tailwind CSS
 - `backend/`: FastAPI + SQLite + JSON/Markdown ストア + pytest
-- `docker-compose.yml`: frontend / backend / Caddy をまとめて起動
-- `docker-compose.qnap.yml`: QNAP TS-433 + PostgreSQL + NAS保存向け本番構成
-- `docker-compose.rpi.yml`: Raspberry Pi 向け Docker 構成
-- `infra/caddy/Caddyfile`: `/api` を backend に、それ以外を frontend にリバースプロキシ
 - `infra/caddy/Caddyfile.rpi-native`: Raspberry Pi ネイティブ運用向け Caddy 設定
 - `infra/systemd/`: Raspberry Pi ネイティブ運用向け systemd ユニット
-- バックアップコマンド: SQLite / PostgreSQL
-- seed データと API テスト
+- `docs/rpi-lan-deployment.md`: Raspberry Pi への常駐手順
+- バックアップコマンドと seed データ、API テスト
 
-## ディレクトリ構成
+## 本番構成
 
-```text
-frontend/
-  src/
-    app/
-    api/
-    components/
-    hooks/
-    lib/
-    pages/
-    types/
-backend/
-  app/
-    api/
-    core/
-    db/
-    models/
-    schemas/
-    services/
-  tests/
-infra/
-  caddy/
-  systemd/
-```
+正式な運用構成は次のとおりです。
 
-## 起動方法
+- アプリ本体: Raspberry Pi
+- frontend 配信: Caddy から `/srv/lab-app/frontend/dist`
+- backend 公開: `127.0.0.1:8000` を Caddy が中継
+- DB: Raspberry Pi ローカルの SQLite
+- 日誌やバックアップ: 必要なら NAS 共有を Raspberry Pi からマウントして保存
+- 公開 URL: `http://<raspberry-pi-host>:8088`
 
-### 1. Docker Compose で起動
+手順の詳細は `docs/rpi-lan-deployment.md` を参照してください。
+
+## Raspberry Pi への配置
+
+ここでは Docker は使わず、`systemd + Caddy + frontend build` で常駐させます。
+
+1. backend の仮想環境を作る
 
 ```bash
-docker compose up --build
+cd backend
+python3.11 -m venv .venv
+. .venv/bin/activate
+pip install -e .
 ```
 
-起動後のアクセス先:
+2. `.env.rpi.example` をコピーして `.env.rpi` を作る
 
-- アプリ: [http://localhost:8088](http://localhost:8088)
-- frontend 直アクセス: [http://localhost:5173](http://localhost:5173)
-- backend API: [http://localhost:8000](http://localhost:8000)
-- OpenAPI Docs: [http://localhost:8088/api/docs](http://localhost:8088/api/docs)
+```bash
+cp .env.rpi.example .env.rpi
+```
 
-### 2. 開発用アカウント
+3. frontend を build して Raspberry Pi の配信先へ配置する
 
-seed で以下を投入します。
+```bash
+cd frontend
+npm ci
+npm run build
+sudo rsync -a --delete dist/ /srv/lab-app/frontend/dist/
+```
 
-- `admin` / `admin1234`
-- `shimizu-yuichiro` / `shimizu1234`
+4. `infra/systemd/` と `infra/caddy/Caddyfile.rpi-native` を配置して有効化する
 
-`/api/auth/login` `/api/auth/logout` `/api/auth/me` `/api/auth/change-password` は実装済みです。  
-管理者は `settings` `rooms` `users` を操作でき、メンバーは在室・勤怠・日誌フローを使います。
+Pi 上の常駐手順、ディレクトリ作成、Caddy の CIDR 制限、バックアップ設定は `docs/rpi-lan-deployment.md` にまとめています。
 
 ## ローカル開発
 
@@ -99,6 +89,16 @@ BACKUP_ROOT_PATH=./data/backups
 AUTO_SEED=true
 ```
 
+## 開発用アカウント
+
+seed で以下を投入します。
+
+- `admin` / `admin1234`
+- `shimizu-yuichiro` / `shimizu1234`
+
+`/api/auth/login` `/api/auth/logout` `/api/auth/me` `/api/auth/change-password` は実装済みです。  
+管理者は `settings` `rooms` `users` を操作でき、メンバーは在室・勤怠・日誌フローを使います。
+
 ## 初期確認ポイント
 
 - frontend から `GET /api/health` の疎通が成功する
@@ -106,57 +106,8 @@ AUTO_SEED=true
 - `backend/data/local.db` が作成される
 - `admin` でログインできる
 
-## QNAP TS-433 本番構成
+## 補足
 
-QNAP `172.16.1.10` へ載せる本番構成は `docker-compose.qnap.yml` を使います。想定は次のとおりです。
-
-- 公開URL: `http://172.16.1.10:8088`
-- QNAP管理画面: `https://172.16.1.10` または `http://172.16.1.10:8080`
-- DB: `PostgreSQL`
-- 日報: NAS 共有フォルダ上の Markdown
-- ネットワーク制限: `172.16.1.0/24`
-
-### QNAP 側の準備
-
-1. Container Station を有効化する
-2. 共有フォルダ `lab-app` を作る
-3. `lab-app/postgres` `lab-app/notes` `lab-app/sessions` `lab-app/status_changes` `lab-app/audit_logs` `lab-app/backups` を作る
-4. `.env.qnap.example` をコピーして `.env.qnap` を作り、`QNAP_APP_ROOT` を実機の共有フォルダパスへ合わせる
-
-### 起動
-
-```bash
-docker compose --env-file .env.qnap -f docker-compose.qnap.yml up --build -d
-```
-
-### PostgreSQL バックアップ
-
-backend コンテナ内で次を実行すると、`/app/data/nas/backups/postgres` にダンプを作成します。
-
-```bash
-python -m app.commands.backup_postgres
-```
-
-保持世代数は `BACKUP_RETENTION_COUNT` で調整できます。未指定時は 7 世代を残します。
-
-## Raspberry Pi LAN限定 本番構成
-
-Raspberry Pi に `frontend + backend + Caddy` を載せ、SQLite は Pi ローカル、Markdown / CSV / backups は NAS に置く構成は、基本的に `systemd + Caddy + frontend build` で運用します。  
-`docker-compose.rpi.yml` は比較用の Docker 構成として残しています。
-
-- 公開URL: `http://<raspberry-pi-host>:8088`
-- backend の公開: `127.0.0.1:8000` を Caddy から中継
-- frontend の公開: `/srv/lab-app/frontend/dist` を Caddy から配信
-- ネットワーク制限: `ALLOWED_SUBNETS` と `infra/caddy/Caddyfile.rpi-native`
-- バックアップ: `lab-management-backup@.timer` から `python -m app.commands.backup_sqlite`
-
-詳細は [docs/rpi-lan-deployment.md](/home/ishikiri_02/Documents/HelloWorld/docs/rpi-lan-deployment.md) を参照してください。
-
-## 次フェーズ
-
-現時点で auth / users / attendance / notes / backup の土台は揃っています。次に進めやすい項目は以下です。
-
-1. 権限別 UI の詰め
-2. 集計画面の拡張
-3. 運用ログと障害時の可観測性強化
-4. 実機デプロイ手順の自動化
+- `docker-compose.yml` `docker-compose.rpi.yml` `docker-compose.qnap.yml` は参考用の旧構成です。
+- QNAP にアプリ本体を置く前提ではありません。
+- QNAP を使う場合は、Raspberry Pi からマウントする NAS 保存先として扱います。
