@@ -13,9 +13,10 @@ class Settings(BaseSettings):
     api_prefix: str = "/api"
     app_base_url: str = "http://localhost:8088"
     data_root_path: str = "./data/nas"
+    contact_time_root_path: str = "/mnt/nas-helloworld/data"
     sqlite_path: str = "./data/local.db"
     database_url: str = ""
-    backup_root_path: str = "./data/backups"
+    backup_root_path: str = "./data/nas/backups"
     backup_retention_count: int = 7
     session_secret_key: str = "dev-session-secret-change-me"
     cors_origins: Annotated[list[str], NoDecode] = Field(

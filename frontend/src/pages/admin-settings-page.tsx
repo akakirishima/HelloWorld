@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { ApiError } from "@/api/client";
 import { FilterBar } from "@/components/ui/filter-bar";
@@ -10,10 +11,15 @@ import type { LabSettings, RoomItem } from "@/types/app";
 
 export function AdminSettingsPage() {
   const { state, activeRooms, isLoaded, replaceLabSettings } = useLabBoard();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const deletedRoomName =
+    (location.state as { deletedRoomName?: string } | null)?.deletedRoomName ?? null;
   const [draftLab, setDraftLab] = useState<LabSettings>(state.lab);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingDeleteRoomId, setPendingDeleteRoomId] = useState<string | null>(null);
 
   const sortedRooms = useMemo(
     () => [...draftLab.rooms].sort((left, right) => left.displayOrder - right.displayOrder),
@@ -94,6 +100,13 @@ export function AdminSettingsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {deletedRoomName && (
+        <div className="flex items-center gap-3 rounded-2xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+          <span className="text-emerald-600">✓</span>
+          「{deletedRoomName}」を削除しました
+        </div>
+      )}
+
       <PageHeader
         eyebrow="Admin Settings"
         title="研究室設定"
@@ -146,52 +159,86 @@ export function AdminSettingsPage() {
         description={`有効な部屋は現在 ${activeRooms.length} 件です。タブ表示順は表示順の小さい順で決まります。`}
       >
         <div className="space-y-3">
-          {sortedRooms.map((room) => (
-            <FilterBar key={room.id} className="bg-white">
-              <label className="flex min-w-[220px] flex-1 flex-col gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  部屋名
-                </span>
-                <input
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-slate-400"
-                  data-testid={`room-name-input-${room.id}`}
-                  onChange={(event) => updateRoomDraft(room.id, { name: event.target.value })}
-                  value={room.name}
-                />
-              </label>
-              <label className="flex min-w-[160px] flex-1 flex-col gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  表示順
-                </span>
-                <input
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-slate-400"
-                  data-testid={`room-order-input-${room.id}`}
-                  min={1}
-                  onChange={(event) =>
-                    updateRoomDraft(room.id, { displayOrder: Number(event.target.value) || 1 })
-                  }
-                  type="number"
-                  value={room.displayOrder}
-                />
-              </label>
-              <label className="flex min-w-[160px] flex-1 flex-col gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  状態
-                </span>
-                <select
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-slate-400"
-                  data-testid={`room-status-select-${room.id}`}
-                  onChange={(event) =>
-                    updateRoomDraft(room.id, { isActive: event.target.value === "active" })
-                  }
-                  value={room.isActive ? "active" : "inactive"}
-                >
-                  <option value="active">有効</option>
-                  <option value="inactive">無効</option>
-                </select>
-              </label>
-            </FilterBar>
-          ))}
+          {sortedRooms.map((room) => {
+            const isDraft = room.id.startsWith("draft-");
+            return (
+              <div key={room.id} className="rounded-2xl overflow-hidden border border-slate-200">
+                <FilterBar className="bg-white border-0">
+                  <label className="flex min-w-[220px] flex-1 flex-col gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      部屋名
+                    </span>
+                    <input
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-slate-400"
+                      data-testid={`room-name-input-${room.id}`}
+                      onChange={(event) => updateRoomDraft(room.id, { name: event.target.value })}
+                      value={room.name}
+                    />
+                  </label>
+                  <label className="flex min-w-[160px] flex-1 flex-col gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      表示順
+                    </span>
+                    <input
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:border-slate-400"
+                      data-testid={`room-order-input-${room.id}`}
+                      min={1}
+                      onChange={(event) =>
+                        updateRoomDraft(room.id, { displayOrder: Number(event.target.value) || 1 })
+                      }
+                      type="number"
+                      value={room.displayOrder}
+                    />
+                  </label>
+                  <div className="flex items-end pb-1">
+                    <ToolbarButton
+                      label={pendingDeleteRoomId === room.id ? "キャンセル" : "削除"}
+                      tone={pendingDeleteRoomId === room.id ? "secondary" : "danger"}
+                      onClick={() => {
+                        if (isDraft) {
+                          // 未保存のドラフト部屋はそのまま一覧から除去
+                          setDraftLab((current) => ({
+                            ...current,
+                            rooms: current.rooms.filter((r) => r.id !== room.id),
+                          }));
+                          return;
+                        }
+                        setPendingDeleteRoomId(
+                          pendingDeleteRoomId === room.id ? null : room.id,
+                        );
+                      }}
+                    />
+                  </div>
+                </FilterBar>
+
+                {/* インライン削除警告（保存済み部屋のみ） */}
+                {pendingDeleteRoomId === room.id && (
+                  <div className="border-t border-rose-200 bg-rose-50 px-4 py-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="text-sm text-rose-800">
+                        <span className="mr-2 font-bold">⚠️</span>
+                        <strong>「{room.name}」</strong> を削除しようとしています。
+                        この操作は取り消せません。
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <ToolbarButton
+                          label="キャンセル"
+                          onClick={() => setPendingDeleteRoomId(null)}
+                        />
+                        <ToolbarButton
+                          label="削除確認ページへ進む →"
+                          tone="danger"
+                          onClick={() => {
+                            navigate(`/admin/rooms/delete/${room.id}`, { state: { room } });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </Panel>
 

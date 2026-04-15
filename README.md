@@ -84,8 +84,9 @@ uvicorn app.main:app --reload
 ```env
 APP_ENV=development
 DATA_ROOT_PATH=./data/nas
+CONTACT_TIME_ROOT_PATH=/mnt/nas-helloworld/data
 SQLITE_PATH=./data/local.db
-BACKUP_ROOT_PATH=./data/backups
+BACKUP_ROOT_PATH=./data/nas/backups
 AUTO_SEED=true
 ```
 
@@ -104,10 +105,11 @@ seed で以下を投入します。
 - frontend から `GET /api/health` の疎通が成功する
 - backend の `/api/docs` が開く
 - `backend/data/local.db` が作成される
+- `backend/data/nas/` 配下に notes / sessions / status_changes / audit_logs / backups が作成される
+- `contact_time/` は NAS 側に生成される
 - `admin` でログインできる
 
 ## 補足
 
-- `docker-compose.yml` `docker-compose.rpi.yml` `docker-compose.qnap.yml` は参考用の旧構成です。
-- QNAP にアプリ本体を置く前提ではありません。
-- QNAP を使う場合は、Raspberry Pi からマウントする NAS 保存先として扱います。
+- `docker-compose.yml` `docker-compose.rpi.yml` `docker-compose.qnap.yml` はいずれも NAS 保存前提です。
+- QNAP はアプリ本体の置き場ではなく、NAS 保存先として扱います。

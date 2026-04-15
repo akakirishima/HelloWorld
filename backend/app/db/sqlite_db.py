@@ -7,6 +7,39 @@ from pathlib import Path
 
 
 _SCHEMA = """
+CREATE TABLE IF NOT EXISTS lab (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS rooms (
+    id INTEGER PRIMARY KEY,
+    lab_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    display_order INTEGER NOT NULL DEFAULT 1,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY,
+    full_name TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL,
+    affiliation TEXT NOT NULL DEFAULT '',
+    academic_year TEXT NOT NULL DEFAULT 'Researcher',
+    room_id INTEGER,
+    must_change_password INTEGER NOT NULL DEFAULT 1,
+    last_login_at TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
@@ -19,6 +52,15 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_checkin ON sessions(check_in_at);
+
+CREATE TABLE IF NOT EXISTS presence (
+    user_id TEXT PRIMARY KEY,
+    current_status TEXT NOT NULL,
+    current_session_id TEXT,
+    last_changed_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_presence_updated_at ON presence(updated_at);
 
 CREATE TABLE IF NOT EXISTS status_changes (
     id TEXT PRIMARY KEY,
@@ -44,6 +86,20 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_al_created_at ON audit_logs(created_at);
+
+CREATE TABLE IF NOT EXISTS notes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    note_date TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    did_today TEXT NOT NULL DEFAULT '',
+    future_tasks TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, note_date)
+);
+CREATE INDEX IF NOT EXISTS idx_notes_user_date ON notes(user_id, note_date);
+CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes(updated_at);
 """
 
 
@@ -58,6 +114,12 @@ class SqliteDb:
         self._conn.row_factory = sqlite3.Row
         self._lock = threading.Lock()
         self._init_schema()
+
+    def __enter__(self) -> "SqliteDb":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
 
     def _init_schema(self) -> None:
         with self._lock:

@@ -1,7 +1,7 @@
 # Raspberry Pi LAN限定 配置メモ
 
 研究室LAN限定で Raspberry Pi に `frontend + backend + reverse proxy` を載せるときの最小構成です。  
-ここでは Docker は使わず、`systemd + Caddy + frontend build` で常駐させます。アプリ本体は Raspberry Pi に置き、QNAP は使うとしても NAS 保存先としてだけ扱います。
+ここでは Docker は使わず、`systemd + Caddy + frontend build` で常駐させます。アプリ本体は Raspberry Pi に置き、NAS はバックアップ先としてだけ扱います。
 
 ## 役割分担
 
@@ -11,11 +11,9 @@
   - Caddy
   - SQLite
 - NAS
-  - 日誌 Markdown
-  - CSV 長期保存
   - バックアップ世代
 
-NAS は必須ではありません。運用を単純化したい場合は、NAS 側に置いているディレクトリも Raspberry Pi ローカルへ寄せて構いません。
+この構成では Raspberry Pi が SQLite の正本を持ち、NAS は SQLite バックアップの保存先になります。
 
 ## ホスト側ディレクトリ
 
@@ -24,16 +22,11 @@ NAS は必須ではありません。運用を単純化したい場合は、NAS 
   sqlite/
 
 /mnt/lab-app-nas/
-  notes/
-  sessions/
-  status_changes/
-  audit_logs/
   backups/
 ```
 
 - `/srv/lab-app/local` は Raspberry Pi ローカル永続領域
 - `/mnt/lab-app-nas` は Raspberry Pi 側でマウント済みの NAS 共有フォルダの例
-- NAS を使わない場合は、`notes` `sessions` `status_changes` `audit_logs` `backups` も `/srv/lab-app/local` 配下へ寄せてよい
 
 ## 構成ファイル
 
@@ -58,13 +51,7 @@ NAS は必須ではありません。運用を単純化したい場合は、NAS 
 ```bash
 sudo mkdir -p /srv/lab-app/local/sqlite
 sudo mkdir -p /srv/lab-app/frontend/dist
-sudo mkdir -p /mnt/lab-app-nas/{notes,sessions,status_changes,audit_logs,backups}
-```
-
-NAS を使わない場合は、代わりに次のようなローカルディレクトリを作ります。
-
-```bash
-sudo mkdir -p /srv/lab-app/local/{notes,sessions,status_changes,audit_logs,backups}
+sudo mkdir -p /mnt/lab-app-nas/backups
 ```
 
 環境変数:
@@ -73,7 +60,7 @@ sudo mkdir -p /srv/lab-app/local/{notes,sessions,status_changes,audit_logs,backu
 cp .env.rpi.example .env.rpi
 ```
 
-必要に応じて `DATA_ROOT_PATH` と `BACKUP_ROOT_PATH` をローカルパスへ変えてください。未指定時の保存世代数は `BACKUP_RETENTION_COUNT=7` です。
+`DATA_ROOT_PATH` は旧 notes データの移行・掃除にだけ使います。`CONTACT_TIME_ROOT_PATH` は手動の Excel 出力スクリプト用です。通常運用で NAS に保存するのは `BACKUP_ROOT_PATH` の SQLite バックアップだけです。未指定時の保存世代数は `BACKUP_RETENTION_COUNT=7` です。
 
 Caddy インストール:
 
@@ -133,10 +120,9 @@ sudo systemctl reload caddy
 ## 保存方針
 
 - `SQLite`: Raspberry Pi ローカル
-- `notes`, `sessions`, `status_changes`, `audit_logs`: NAS または Raspberry Pi ローカル
-- `backups`: NAS または Raspberry Pi ローカル
+- `backups`: NAS
 
-NAS が一時断した場合は、SQLite を使う API の継続を優先する想定です。NAS 保存が必要な処理は失敗をログで追える前提で運用します。NAS を使わない場合はこの考慮は不要です。
+NAS が一時断した場合は、SQLite を使う API の継続を優先する想定です。バックアップ処理だけが NAS に依存します。
 
 ## 運用
 

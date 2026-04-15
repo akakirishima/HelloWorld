@@ -6,6 +6,7 @@ import { AdminAggregatesPage } from "@/pages/admin-aggregates-page";
 import { AdminAuditLogsPage } from "@/pages/admin-audit-logs-page";
 import { AdminCorrectionsPage } from "@/pages/admin-corrections-page";
 import { AdminSettingsPage } from "@/pages/admin-settings-page";
+import { AdminRoomDeletePage } from "@/pages/admin-room-delete-page";
 import { AdminUserDeletePage } from "@/pages/admin-user-delete-page";
 import { AdminUsersPage } from "@/pages/admin-users-page";
 import { ChangePasswordPage } from "@/pages/change-password-page";
@@ -63,6 +64,10 @@ export const router = createBrowserRouter([
       {
         path: "admin/settings",
         element: <AdminSettingsPage />,
+      },
+      {
+        path: "admin/rooms/delete/:roomId",
+        element: <AdminRoomDeletePage />,
       },
       {
         path: "admin/corrections",

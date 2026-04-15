@@ -115,45 +115,33 @@ export function PageShell() {
           ) : null}
 
           <div className="mt-auto space-y-4">
-            <div className="rounded-[24px] border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
-              <p className="font-semibold text-white">{user.displayName}</p>
-              <p className="mt-1 text-slate-300">
-                {user.role === "admin" ? "研究室管理者" : "研究室メンバー"}
-              </p>
-              <p className="mt-2 text-slate-400">{user.userId}</p>
-            </div>
             <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
               <p className="font-semibold">1研究室専用フロー</p>
               <p className="mt-2 leading-6 text-emerald-50/90">
                 管理者が部屋を整備し、メンバーアカウントを作成して配布する運用を前提にしています。
               </p>
             </div>
+            <div className="rounded-[24px] border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+                ログイン
+              </p>
+              <p className="mt-2 font-semibold text-white">{user.displayName}</p>
+              <p className="mt-1 text-slate-300">
+                {user.role === "admin" ? "管理者" : "メンバー"}
+              </p>
+              <p className="mt-3 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+                学年
+              </p>
+              <p className="mt-1 text-slate-100">{user.academicYear}</p>
+              <p className="mt-2 text-slate-400">{user.userId}</p>
+              <div className="mt-4">
+                <ToolbarButton label="ログアウト" onClick={() => void handleLogout()} tone="primary" />
+              </div>
+            </div>
           </div>
         </aside>
 
         <div className="flex min-h-0 flex-col gap-4">
-          <header className="flex flex-col gap-4 rounded-[32px] border border-white/70 bg-white/80 px-6 py-5 shadow-panel backdrop-blur xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-teal-700">
-                研究室 在室・勤怠・日誌管理システム
-              </p>
-              <p className="mt-1 text-sm text-slate-600">
-                業務システム寄りの情報密度で、PC とタブレットを主対象にした画面骨格です。
-              </p>
-            </div>
-            <div className="flex flex-wrap items-start gap-3">
-              <HeaderStat
-                label="ログイン"
-                value={user.displayName}
-                helper={user.role === "admin" ? "管理者" : "メンバー"}
-              />
-              <HeaderStat label="学年" value={user.academicYear} helper="" />
-              <div className="flex items-center">
-                <ToolbarButton label="ログアウト" onClick={() => void handleLogout()} tone="primary" />
-              </div>
-            </div>
-          </header>
-
           {isAdminSection && isAdmin ? (
             <div className="flex flex-wrap gap-2 rounded-[24px] border border-white/70 bg-white/70 p-3 shadow-panel backdrop-blur">
               {adminLinks.map((item) => (
@@ -180,18 +168,6 @@ export function PageShell() {
           </main>
         </div>
       </div>
-    </div>
-  );
-}
-
-function HeaderStat(props: { label: string; value: string; helper: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-        {props.label}
-      </p>
-      <p className="mt-2 text-lg font-semibold text-slate-950">{props.value}</p>
-      <p className="mt-1 text-xs text-slate-500">{props.helper}</p>
     </div>
   );
 }

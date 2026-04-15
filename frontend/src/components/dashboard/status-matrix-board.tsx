@@ -1,5 +1,6 @@
 import type { DashboardMatrixColumn, DashboardMatrixRow } from "@/types/app";
 
+import { StatusBadge } from "@/components/ui/status-badge";
 import { cn } from "@/lib/utils";
 
 type StatusMatrixBoardProps = {
@@ -7,13 +8,28 @@ type StatusMatrixBoardProps = {
   className?: string;
   fullscreen?: boolean;
   interactive?: boolean;
+  visibleColumns?: StatusColumnKey[];
   onCellSelect?: (
     rowId: string,
-    column: Exclude<DashboardMatrixColumn, "name">,
+    column: StatusColumnKey,
   ) => void | Promise<void>;
 };
 
-const columns: Array<{ key: DashboardMatrixColumn; label: string; helper?: string }> = [
+type ColumnDef = {
+  key: DashboardMatrixColumn;
+  label: string;
+  helper?: string;
+};
+
+type StatusColumnDef = {
+  key: StatusColumnKey;
+  label: string;
+  helper?: string;
+};
+
+type StatusColumnKey = Exclude<DashboardMatrixColumn, "name">;
+
+const columns: ColumnDef[] = [
   { key: "name", label: "Name" },
   { key: "room", label: "Room" },
   { key: "onCampus", label: "On Campus" },
@@ -21,19 +37,24 @@ const columns: Array<{ key: DashboardMatrixColumn; label: string; helper?: strin
   { key: "seminarMeeting", label: "Seminar Meeting" },
   { key: "home", label: "Home", helper: "Off Campus" },
 ];
-const statusColumns = columns.slice(1) as Array<{
-  key: Exclude<DashboardMatrixColumn, "name">;
-  label: string;
-  helper?: string;
-}>;
+const columnsByKey = new Map<DashboardMatrixColumn, ColumnDef>(
+  columns.map((column) => [column.key, column]),
+);
 
 export function StatusMatrixBoard({
   rows,
   className,
   fullscreen = false,
   interactive = false,
+  visibleColumns,
   onCellSelect,
 }: StatusMatrixBoardProps) {
+  const statusColumnKeys = visibleColumns ?? columns.slice(1).map((column) => column.key);
+  const statusColumns = statusColumnKeys
+    .map((key) => columnsByKey.get(key))
+    .filter((column): column is StatusColumnDef => column !== undefined);
+  const gridTemplateColumns = `2fr repeat(${statusColumns.length}, minmax(0, 1fr))`;
+
   return (
     <div
       data-testid={fullscreen ? "fullscreen-board" : "status-matrix-board"}
@@ -46,13 +67,14 @@ export function StatusMatrixBoard({
       )}
     >
       <div className={cn(fullscreen ? "min-h-full min-w-full" : "min-w-[880px]")}>
-        <StatusMatrixHeader fullscreen={fullscreen} />
+        <StatusMatrixHeader fullscreen={fullscreen} columns={statusColumns} gridTemplateColumns={gridTemplateColumns} />
         <div>
           {rows.map((row) => (
             <StatusMatrixRow
               key={row.id}
               fullscreen={fullscreen}
               interactive={interactive}
+              statusColumns={statusColumns}
               onCellSelect={onCellSelect}
               row={row}
             />
@@ -63,11 +85,19 @@ export function StatusMatrixBoard({
   );
 }
 
-function StatusMatrixHeader({ fullscreen }: { fullscreen: boolean }) {
+function StatusMatrixHeader({
+  fullscreen,
+  columns,
+  gridTemplateColumns,
+}: {
+  fullscreen: boolean;
+  columns: StatusColumnDef[];
+  gridTemplateColumns: string;
+}) {
   return (
     <div
       className="grid border-b border-[#c7cfbf] bg-[#6f8b5b] text-white"
-      style={{ gridTemplateColumns: "2fr repeat(5, minmax(0, 1fr))" }}
+      style={{ gridTemplateColumns }}
     >
       {columns.map((column) => (
         <div
@@ -75,7 +105,7 @@ function StatusMatrixHeader({ fullscreen }: { fullscreen: boolean }) {
           className={cn(
             "flex items-center justify-center border-r border-white/20 px-3 text-center",
             fullscreen ? "min-h-[72px] sm:min-h-[84px]" : "min-h-[68px]",
-            column.key === "name" && (fullscreen ? "justify-start px-3 sm:px-5" : "justify-start px-5"),
+            fullscreen ? "px-3 sm:px-5" : "px-4",
           )}
         >
           <div>
@@ -103,18 +133,21 @@ function StatusMatrixRow({
   row,
   fullscreen,
   interactive,
+  statusColumns,
   onCellSelect,
 }: {
   row: DashboardMatrixRow;
   fullscreen: boolean;
   interactive: boolean;
+  statusColumns: StatusColumnDef[];
   onCellSelect?: (
     rowId: string,
-    column: Exclude<DashboardMatrixColumn, "name">,
+    column: StatusColumnKey,
   ) => void | Promise<void>;
 }) {
   const isHomeRow = row.activeColumn === "home" || row.statusLabel === "Off Campus";
   const isResearcher = row.academicGrade === "Researcher";
+  const showReadOnlySummary = !interactive;
 
   return (
     <div
@@ -124,7 +157,7 @@ function StatusMatrixRow({
           ? "border-[#aeb9a7] bg-[#cad3c5] text-slate-700 even:bg-[#bcc8b8]"
           : "border-[#d8dfd1] bg-[#fcfdf9] text-slate-800 even:bg-[#f3f7ee]",
       )}
-      style={{ gridTemplateColumns: "2fr repeat(5, minmax(0, 1fr))" }}
+      style={{ gridTemplateColumns: `2fr repeat(${statusColumns.length}, minmax(0, 1fr))` }}
       data-testid={`matrix-row-${row.id}`}
     >
       <div
@@ -167,21 +200,55 @@ function StatusMatrixRow({
             </p>
           ) : null}
         </div>
-        <div
-          className={cn(
-            isResearcher ? "mt-2 flex items-center gap-2" : "mt-1 flex items-center gap-2",
-            isHomeRow ? "text-slate-500" : "text-slate-600",
-            fullscreen ? "text-xs sm:text-base" : "text-xs",
-          )}
-        >
-          <span>{row.checkInAt}</span>
-        </div>
+        {showReadOnlySummary ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <StatusBadge
+              text={`current: ${row.statusLabel}`}
+              tone={isHomeRow ? "neutral" : "info"}
+            />
+            <span
+              className={cn(
+                "text-xs font-medium",
+                isHomeRow ? "text-slate-500" : "text-slate-600",
+                fullscreen ? "sm:text-sm" : "text-[11px]",
+              )}
+            >
+              概要画面は確認専用
+            </span>
+          </div>
+        ) : (
+          <div
+            className={cn(
+              isResearcher ? "mt-2 flex items-center gap-2" : "mt-1 flex items-center gap-2",
+              isHomeRow ? "text-slate-500" : "text-slate-600",
+              fullscreen ? "text-xs sm:text-base" : "text-xs",
+            )}
+          >
+            <span>{row.checkInAt}</span>
+          </div>
+        )}
       </div>
 
       {statusColumns.map((column) => {
         const isActive = row.activeColumn === column.key;
+        const cellContent = isActive ? (
+          interactive ? (
+            <StatusMarker
+              fullscreen={fullscreen}
+              label={`${row.name}: ${row.statusLabel}`}
+              testId={`matrix-marker-${row.id}`}
+            />
+          ) : (
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-100 px-3 py-1.5 text-xs font-semibold text-sky-900 shadow-sm">
+              <span className="h-2 w-2 rounded-full bg-sky-500" />
+              {row.statusLabel}
+            </div>
+          )
+        ) : (
+          <div className="h-3 w-3 rounded-full border border-slate-300 bg-white/85" />
+        );
 
-        return (
+        return interactive ? (
           <button
             aria-label={`${row.name} を ${column.label} に変更`}
             data-testid={`matrix-cell-${row.id}-${column.key}`}
@@ -202,17 +269,21 @@ function StatusMatrixRow({
             }}
             type="button"
           >
-            {isActive ? (
-              <StatusMarker
-                fullscreen={fullscreen}
-                label={`${row.name}: ${row.statusLabel}`}
-                testId={`matrix-marker-${row.id}`}
-              />
-            ) : (
-              <div className="h-10 w-10 rounded-full border border-transparent" />
-            )}
+            {cellContent}
           </button>
-        )
+        ) : (
+          <div
+            key={column.key}
+            className={cn(
+              "flex items-center justify-center border-r transition-colors",
+              isHomeRow ? "border-[#aeb9a7]" : "border-[#d8dfd1]",
+              fullscreen ? "min-h-[82px] sm:min-h-[94px]" : "min-h-[64px]",
+              isActive && (isHomeRow ? "bg-[#aeb9a9]" : "bg-[#e8f3dd]"),
+            )}
+          >
+            {cellContent}
+          </div>
+        );
       })}
     </div>
   );

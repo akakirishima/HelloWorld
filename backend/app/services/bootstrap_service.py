@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.core.constants import PresenceStatus, UserRole
 from app.core.security import get_password_hash
+from app.db.sqlite_db import SqliteDb
 from app.models.presence_latest import PresenceRecord
 from app.models.session import SessionRecord
 from app.store import Stores, make_stores
@@ -274,7 +275,7 @@ SAMPLE_USERS = (
 )
 
 
-def seed_sample_data(stores: Stores) -> None:
+def seed_sample_data(contact_time_root: Path, stores: Stores) -> None:
     # すでにユーザーが存在する場合はスキップ
     if stores.users.list_all():
         return
@@ -302,7 +303,6 @@ def seed_sample_data(stores: Stores) -> None:
             updated_at=now,
         )
         stores.users.save(user)
-
         current_status = payload["current_status"]
         session_id = None
         if current_status != PresenceStatus.OFF_CAMPUS.value:
@@ -328,6 +328,10 @@ def seed_sample_data(stores: Stores) -> None:
         ))
 
 
-def run_seed(root: Path) -> None:
-    stores = make_stores(root)
-    seed_sample_data(stores)
+def run_seed(
+    data_root: Path,
+    contact_time_root: Path,
+    sqlite_db: SqliteDb | None = None,
+) -> None:
+    stores = make_stores(data_root, sqlite_db=sqlite_db)
+    seed_sample_data(contact_time_root, stores)

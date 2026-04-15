@@ -100,6 +100,30 @@ def update_room(
     return serialize_room(room)
 
 
+@router.delete("/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_room(room_id: int, admin: AdminUser, stores: AppStores) -> None:
+    room = stores.rooms.get_room(room_id)
+    if room is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found.")
+
+    assigned = [u for u in stores.users.list_all() if u.room_id == room_id]
+    if assigned:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"この部屋には {len(assigned)} 人のメンバーが所属しています。先にメンバーの所属部屋を変更してください。",
+        )
+
+    create_audit_log(
+        stores.audit,
+        actor_user_id=admin.user_id,
+        action="room_delete",
+        target_type="rooms",
+        target_id=str(room_id),
+        before_json={"room_id": room_id, "name": room.name},
+    )
+    stores.rooms.delete_room(room_id)
+
+
 def _require_lab(stores: AppStores) -> LabRecord:
     lab = stores.rooms.get_lab()
     if lab is None:

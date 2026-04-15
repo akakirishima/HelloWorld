@@ -15,7 +15,8 @@ class NoteRecord:
     id: str
     note_date: date
     title: str
-    body_markdown: str
+    did_today: str
+    future_tasks: str
     created_at: datetime
     updated_at: datetime
 
@@ -30,7 +31,12 @@ class FileNotesStore:
         notes = [item for item in items if item is not None]
         if q:
             keyword = q.lower()
-            notes = [item for item in notes if keyword in item.title.lower() or keyword in item.body_markdown.lower()]
+            notes = [
+                item for item in notes
+                if keyword in item.title.lower()
+                or keyword in item.did_today.lower()
+                or keyword in item.future_tasks.lower()
+            ]
         if date_from:
             notes = [item for item in notes if item.note_date >= date_from]
         if date_to:
@@ -43,7 +49,7 @@ class FileNotesStore:
             return None
         return self._parse_note_file(note_path)
 
-    def create_note(self, *, note_date: date, title: str, body_markdown: str) -> NoteRecord:
+    def create_note(self, *, note_date: date, title: str, did_today: str, future_tasks: str) -> NoteRecord:
         note_path = self._note_path(note_date)
         if note_path.exists():
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A note for this date already exists.")
@@ -53,14 +59,15 @@ class FileNotesStore:
             id=note_date.isoformat(),
             note_date=note_date,
             title=title,
-            body_markdown=body_markdown,
+            did_today=did_today,
+            future_tasks=future_tasks,
             created_at=now,
             updated_at=now,
         )
         self._write_note_file(note_path, record)
         return record
 
-    def update_note(self, *, note_id: str, note_date: date, title: str, body_markdown: str) -> NoteRecord:
+    def update_note(self, *, note_id: str, note_date: date, title: str, did_today: str, future_tasks: str) -> NoteRecord:
         current_path = self._note_path_from_id(note_id)
         current = self._require_note(current_path)
         next_path = self._note_path(note_date)
@@ -71,7 +78,8 @@ class FileNotesStore:
             id=note_date.isoformat(),
             note_date=note_date,
             title=title,
-            body_markdown=body_markdown,
+            did_today=did_today,
+            future_tasks=future_tasks,
             created_at=current.created_at,
             updated_at=datetime.now(timezone.utc),
         )
@@ -106,14 +114,21 @@ class FileNotesStore:
             "note_date": record.note_date.isoformat(),
             "user_id": self.user_id,
             "title": record.title,
+            "did_today": record.did_today,
+            "future_tasks": record.future_tasks,
             "created_at": record.created_at.isoformat(),
             "updated_at": record.updated_at.isoformat(),
         }
+        # ファイル本体は人間が読める Markdown 形式で保存
+        body = (
+            f"## 今日やったこと\n\n{record.did_today}\n\n"
+            f"## 今後の課題等\n\n{record.future_tasks}"
+        )
         payload = (
             f"{FRONT_MATTER_BOUNDARY}\n"
             f"{json.dumps(metadata, ensure_ascii=False, indent=2)}\n"
             f"{FRONT_MATTER_BOUNDARY}\n\n"
-            f"{record.body_markdown}"
+            f"{body}"
         )
         note_path.write_text(payload, encoding="utf-8")
 
@@ -142,15 +157,24 @@ class FileNotesStore:
         if metadata.get("user_id") != self.user_id:
             return None
 
-        body_markdown = content[metadata_end + len(separator):]
-        if body_markdown.startswith("\n"):
-            body_markdown = body_markdown[1:]
+        # 新形式: front matter に did_today / future_tasks が存在する
+        # 旧形式: body_markdown をフォールバックとして did_today に割り当て
+        if "did_today" in metadata:
+            did_today = str(metadata.get("did_today") or "")
+            future_tasks = str(metadata.get("future_tasks") or "")
+        else:
+            body = content[metadata_end + len(separator):]
+            if body.startswith("\n"):
+                body = body[1:]
+            did_today = body
+            future_tasks = ""
 
         return NoteRecord(
             id=str(metadata.get("id") or note_date.isoformat()),
             note_date=note_date,
             title=str(metadata.get("title") or ""),
-            body_markdown=body_markdown,
+            did_today=did_today,
+            future_tasks=future_tasks,
             created_at=created_at,
             updated_at=updated_at,
         )

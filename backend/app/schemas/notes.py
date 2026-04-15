@@ -9,7 +9,8 @@ class NoteItem(BaseModel):
     id: str
     note_date: date
     title: str
-    body_markdown: str
+    did_today: str
+    future_tasks: str
     created_at: datetime
     updated_at: datetime
 
@@ -25,10 +26,12 @@ class NotesListResponse(BaseModel):
 class CreateNoteRequest(BaseModel):
     note_date: date
     title: str = ""
-    body_markdown: str = ""
+    did_today: str = ""
+    future_tasks: str = ""
 
 
 class UpdateNoteRequest(BaseModel):
     note_date: date
     title: str = ""
-    body_markdown: str = ""
+    did_today: str = ""
+    future_tasks: str = ""

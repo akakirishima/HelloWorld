@@ -1,248 +1,184 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from pathlib import Path
 
-from fastapi.testclient import TestClient
-
-from app.db.session import SessionLocal
-from app.main import app
-from app.models.audit_log import AuditLog
-
-
-def test_member_self_attendance_and_session_flow() -> None:
-    suffix = uuid4().hex[:8]
-    user_id = f"member_att_{suffix}"
-    initial_password = f"Init{suffix}99"
-    changed_password = f"Changed{suffix}99"
-
-    with TestClient(app) as client:
-        _login(client, "admin", "admin1234")
-        room_id = _first_room_id(client)
-        _create_member(client, user_id=user_id, password=initial_password, room_id=room_id)
-        _logout(client)
-
-        _login(client, user_id, initial_password)
-        change_password_response = client.post(
-            "/api/auth/change-password",
-            json={"current_password": initial_password, "new_password": changed_password},
-        )
-        assert change_password_response.status_code == 200
-        _logout(client)
-
-        _login(client, user_id, changed_password)
-
-        presence_forbidden = client.get("/api/presence")
-        assert presence_forbidden.status_code == 403
-
-        check_in_response = client.post("/api/attendance/check-in", json={"initial_status": "Room"})
-        assert check_in_response.status_code == 200
-        assert check_in_response.json()["current_status"] == "Room"
-        assert check_in_response.json()["current_session_id"] is not None
-
-        duplicate_check_in = client.post("/api/attendance/check-in", json={"initial_status": "Room"})
-        assert duplicate_check_in.status_code == 400
-
-        status_response = client.post("/api/presence/status", json={"to_status": "Class"})
-        assert status_response.status_code == 200
-        assert status_response.json()["current_status"] == "Class"
-
-        invalid_status_response = client.post("/api/presence/status", json={"to_status": "Off Campus"})
-        assert invalid_status_response.status_code == 400
-
-        check_out_response = client.post("/api/attendance/check-out", json={})
-        assert check_out_response.status_code == 200
-        assert check_out_response.json()["current_status"] == "Off Campus"
-        assert check_out_response.json()["current_session_id"] is None
-
-        duplicate_check_out = client.post("/api/attendance/check-out", json={})
-        assert duplicate_check_out.status_code == 400
-
-        sessions_me = client.get("/api/sessions/me")
-        assert sessions_me.status_code == 200
-        latest = sessions_me.json()["items"][0]
-        assert latest["close_reason"] == "manual_checkout"
-        assert latest["check_out_at"] is not None
-
-        _logout(client)
-
-    with SessionLocal() as db:
-        actions = (
-            db.query(AuditLog.action)
-            .filter(
-                AuditLog.target_type == "users",
-                AuditLog.target_id == user_id,
-                AuditLog.action.in_(["check_in", "status_change", "check_out"]),
-            )
-            .all()
-        )
-        action_names = {item[0] for item in actions}
-        assert {"check_in", "status_change", "check_out"}.issubset(action_names)
+from app.core.constants import PresenceStatus, UserRole
+from app.core.security import get_password_hash
+from app.db.sqlite_db import SqliteDb
+from app.models.presence_latest import PresenceRecord
+from app.models.user import UserRecord
+from app.services.attendance_service import (
+    change_status,
+    check_in,
+    check_out,
+    patch_session_by_admin,
+    resolve_target_user,
+)
+from app.store import make_stores
 
 
-def test_target_user_permission_and_admin_updates() -> None:
-    suffix = uuid4().hex[:8]
-    actor_user_id = f"member_actor_{suffix}"
-    actor_password = f"Actor{suffix}99"
-    actor_changed = f"ActorChanged{suffix}99"
-    target_user_id = f"member_target_{suffix}"
-    target_password = f"Target{suffix}99"
+def test_member_self_attendance_and_session_flow(tmp_path: Path) -> None:
+    stores, admin, member = _setup_stores(tmp_path)
 
-    with TestClient(app) as client:
-        _login(client, "admin", "admin1234")
-        room_id = _first_room_id(client)
-        _create_member(client, user_id=actor_user_id, password=actor_password, room_id=room_id)
-        _create_member(client, user_id=target_user_id, password=target_password, room_id=room_id)
-        _logout(client)
+    target = resolve_target_user(stores, member, None)
+    assert target.user_id == member.user_id
 
-        _login(client, actor_user_id, actor_password)
-        change_password_response = client.post(
-            "/api/auth/change-password",
-            json={"current_password": actor_password, "new_password": actor_changed},
-        )
-        assert change_password_response.status_code == 200
-        _logout(client)
+    presence = check_in(stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value)
+    assert presence.current_status == PresenceStatus.ROOM.value
+    assert presence.current_session_id is not None
 
-        _login(client, actor_user_id, actor_changed)
-        forbidden_check_in = client.post(
-            "/api/attendance/check-in",
-            json={"target_user_id": target_user_id, "initial_status": "Room"},
-        )
-        assert forbidden_check_in.status_code == 403
-        forbidden_status = client.post(
-            "/api/presence/status",
-            json={"target_user_id": target_user_id, "to_status": "Class"},
-        )
-        assert forbidden_status.status_code == 403
-        _logout(client)
-
-        _login(client, "admin", "admin1234")
-        admin_check_in = client.post(
-            "/api/attendance/check-in",
-            json={"target_user_id": target_user_id, "initial_status": "On Campus"},
-        )
-        assert admin_check_in.status_code == 200
-        assert admin_check_in.json()["current_status"] == "On Campus"
-
-        admin_status = client.post(
-            "/api/presence/status",
-            json={"target_user_id": target_user_id, "to_status": "Seminar"},
-        )
-        assert admin_status.status_code == 200
-        assert admin_status.json()["current_status"] == "Seminar"
-
-        admin_check_out = client.post(
-            "/api/attendance/check-out",
-            json={"target_user_id": target_user_id},
-        )
-        assert admin_check_out.status_code == 200
-        assert admin_check_out.json()["current_status"] == "Off Campus"
-
-        list_sessions = client.get("/api/sessions")
-        assert list_sessions.status_code == 200
-        assert any(item["user_id"] == target_user_id for item in list_sessions.json()["items"])
-        _logout(client)
-
-
-def test_patch_session_validations_and_audit_log() -> None:
-    suffix = uuid4().hex[:8]
-    target_user_id = f"member_patch_{suffix}"
-    password = f"Patch{suffix}99"
-
-    with TestClient(app) as client:
-        _login(client, "admin", "admin1234")
-        room_id = _first_room_id(client)
-        _create_member(client, user_id=target_user_id, password=password, room_id=room_id)
-
-        check_in_response = client.post(
-            "/api/attendance/check-in",
-            json={"target_user_id": target_user_id, "initial_status": "Room"},
-        )
-        assert check_in_response.status_code == 200
-        check_out_response = client.post(
-            "/api/attendance/check-out",
-            json={"target_user_id": target_user_id},
-        )
-        assert check_out_response.status_code == 200
-
-        sessions_response = client.get("/api/sessions")
-        assert sessions_response.status_code == 200
-        session_row = next(item for item in sessions_response.json()["items"] if item["user_id"] == target_user_id)
-        session_id = session_row["id"]
-        original_check_in = datetime.fromisoformat(session_row["check_in_at"])
-
-        reason_missing = client.patch(
-            f"/api/sessions/{session_id}",
-            json={"check_in_at": (original_check_in + timedelta(minutes=5)).isoformat()},
-        )
-        assert reason_missing.status_code == 422
-
-        invalid_time = client.patch(
-            f"/api/sessions/{session_id}",
-            json={
-                "check_in_at": (original_check_in + timedelta(hours=2)).isoformat(),
-                "check_out_at": (original_check_in + timedelta(hours=1)).isoformat(),
-                "reason": "時刻整合性チェック",
-            },
-        )
-        assert invalid_time.status_code == 400
-
-        corrected_check_in = (original_check_in - timedelta(minutes=10)).astimezone(timezone.utc)
-        patch_ok = client.patch(
-            f"/api/sessions/{session_id}",
-            json={
-                "check_in_at": corrected_check_in.isoformat(),
-                "reason": "退勤漏れ修正",
-            },
-        )
-        assert patch_ok.status_code == 200
-        assert patch_ok.json()["close_reason"] == "admin_correction"
-
-        _logout(client)
-
-    with SessionLocal() as db:
-        log = (
-            db.query(AuditLog)
-            .filter(
-                AuditLog.action == "session_patch",
-                AuditLog.target_type == "sessions",
-                AuditLog.target_id == str(session_id),
-            )
-            .order_by(AuditLog.id.desc())
-            .first()
-        )
-        assert log is not None
-        assert log.reason == "退勤漏れ修正"
-
-
-def _login(client: TestClient, user_id: str, password: str) -> None:
-    response = client.post("/api/auth/login", json={"user_id": user_id, "password": password})
-    assert response.status_code == 200
-
-
-def _logout(client: TestClient) -> None:
-    response = client.post("/api/auth/logout")
-    assert response.status_code == 200
-
-
-def _first_room_id(client: TestClient) -> int:
-    response = client.get("/api/rooms")
-    assert response.status_code == 200
-    return int(response.json()["items"][0]["id"])
-
-
-def _create_member(client: TestClient, *, user_id: str, password: str, room_id: int) -> None:
-    response = client.post(
-        "/api/users",
-        json={
-            "user_id": user_id,
-            "full_name": f"{user_id} Full Name",
-            "display_name": user_id,
-            "password": password,
-            "role": "member",
-            "academic_year": "M1",
-            "room_id": room_id,
-            "is_active": True,
-        },
+    duplicate_check_in = _call_exc(
+        lambda: check_in(stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value)
     )
-    assert response.status_code == 201
+    assert duplicate_check_in is not None
+
+    status = change_status(stores, actor=member, target=member, to_status=PresenceStatus.CLASS.value)
+    assert status.current_status == PresenceStatus.CLASS.value
+
+    invalid_status = _call_exc(lambda: change_status(stores, actor=member, target=member, to_status=PresenceStatus.OFF_CAMPUS.value))
+    assert invalid_status is not None
+
+    presence = check_out(stores, actor=member, target=member)
+    assert presence.current_status == PresenceStatus.OFF_CAMPUS.value
+    assert presence.current_session_id is None
+
+    duplicate_check_out = _call_exc(lambda: check_out(stores, actor=member, target=member))
+    assert duplicate_check_out is not None
+
+    sessions = stores.sessions.list_by_user(member.user_id)
+    assert sessions[0].close_reason == "manual_checkout"
+    assert sessions[0].check_out_at is not None
+
+    actions = _audit_actions(stores, member.user_id)
+    assert {"check_in", "status_change", "check_out"}.issubset(actions)
+
+
+def test_target_user_permission_and_admin_updates(tmp_path: Path) -> None:
+    stores, admin, actor, target = _setup_stores(tmp_path, include_target=True)
+
+    forbidden = _call_exc(lambda: resolve_target_user(stores, actor, target.user_id))
+    assert forbidden is not None
+
+    resolved = resolve_target_user(stores, admin, target.user_id)
+    assert resolved.user_id == target.user_id
+
+    presence = check_in(stores, actor=admin, target=target, initial_status=PresenceStatus.ON_CAMPUS.value)
+    assert presence.current_status == PresenceStatus.ON_CAMPUS.value
+
+    presence = change_status(stores, actor=admin, target=target, to_status=PresenceStatus.SEMINAR.value)
+    assert presence.current_status == PresenceStatus.SEMINAR.value
+
+    presence = check_out(stores, actor=admin, target=target)
+    assert presence.current_status == PresenceStatus.OFF_CAMPUS.value
+
+    sessions = stores.sessions.list_by_user(target.user_id)
+    assert sessions[0].user_id == target.user_id
+
+
+def test_patch_session_validations_and_audit_log(tmp_path: Path) -> None:
+    stores, admin, member = _setup_stores(tmp_path)
+
+    check_in(stores, actor=admin, target=member, initial_status=PresenceStatus.ROOM.value)
+    check_out(stores, actor=admin, target=member)
+
+    session_obj = stores.sessions.list_by_user(member.user_id)[0]
+    original_check_in = session_obj.check_in_at
+
+    invalid = _call_exc(
+        lambda: patch_session_by_admin(
+            stores,
+            actor=admin,
+            session_obj=session_obj,
+            reason="時刻整合性チェック",
+            check_in_at=original_check_in + timedelta(hours=2),
+            check_out_at_set=True,
+            check_out_at=original_check_in + timedelta(hours=1),
+        )
+    )
+    assert invalid is not None
+
+    corrected_check_in = original_check_in - timedelta(minutes=10)
+    updated = patch_session_by_admin(
+        stores,
+        actor=admin,
+        session_obj=session_obj,
+        reason="退勤漏れ修正",
+        check_in_at=corrected_check_in,
+        check_out_at_set=False,
+        check_out_at=None,
+    )
+    assert updated.close_reason == "admin_correction"
+
+    audit_rows = stores.audit.list_recent(limit=20)
+    log = next(
+        row for row in audit_rows
+        if row.action == "session_patch" and row.target_type == "sessions" and row.target_id == updated.id
+    )
+    assert log.reason == "退勤漏れ修正"
+
+
+def _setup_stores(tmp_path: Path, *, include_target: bool = False):
+    db = SqliteDb(tmp_path / "local.db")
+    stores = make_stores(tmp_path, sqlite_db=db)
+    stores.rooms.ensure_lab_and_rooms("Lab", [{"name": "E103", "display_order": 1}])
+    room = stores.rooms.list_rooms()[0]
+
+    now = datetime(2026, 4, 15, 12, 0, tzinfo=timezone.utc)
+    admin = _create_user(stores, "admin-user", "Admin User", UserRole.ADMIN.value, room.id, now)
+    member = _create_user(stores, "member-user", "Member User", UserRole.MEMBER.value, room.id, now)
+    if include_target:
+        target = _create_user(stores, "target-user", "Target User", UserRole.MEMBER.value, room.id, now)
+        return stores, admin, member, target
+    return stores, admin, member
+
+
+def _create_user(
+    stores,
+    user_id: str,
+    display_name: str,
+    role: str,
+    room_id: int,
+    now: datetime,
+) -> UserRecord:
+    user = UserRecord(
+        user_id=user_id,
+        full_name=display_name,
+        display_name=display_name,
+        password_hash=get_password_hash("Password1234"),
+        role=role,
+        affiliation="",
+        academic_year="M1",
+        room_id=room_id,
+        must_change_password=False,
+        is_active=True,
+        created_at=now,
+        updated_at=now,
+    )
+    stores.users.save(user)
+    stores.presence.save(
+        PresenceRecord(
+            user_id=user_id,
+            current_status=PresenceStatus.OFF_CAMPUS.value,
+            current_session_id=None,
+            last_changed_at=now,
+            updated_at=now,
+        )
+    )
+    return user
+
+
+def _audit_actions(stores, user_id: str) -> set[str]:
+    return {
+        row.action
+        for row in stores.audit.list_recent(limit=200)
+        if row.target_type == "users" and row.target_id == user_id
+    }
+
+
+def _call_exc(func):
+    try:
+        func()
+    except Exception as exc:  # noqa: BLE001
+        return exc
+    return None

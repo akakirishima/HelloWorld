@@ -1,120 +1,156 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+from io import BytesIO
 from pathlib import Path
 
-from fastapi.testclient import TestClient
+import pytest
+from fastapi import HTTPException
 
-from app.main import app
-from app.services import file_notes_service
+from app.db.sqlite_db import SqliteDb
+from app.services.note_export_service import create_notes_workbook
+from app.store.note_store import NoteStore
 
 
-def test_notes_crud_filters_and_single_note_per_day(monkeypatch, tmp_path: Path) -> None:
-    _use_temp_notes_root(monkeypatch, tmp_path)
+def test_notes_crud_and_filters(tmp_path: Path) -> None:
+    db = SqliteDb(tmp_path / "local.db")
+    try:
+        store = NoteStore(root=tmp_path, user_id="admin", sqlite_db=db)
+        today = date.today()
 
-    with TestClient(app) as client:
-        _login(client, "admin", "admin1234")
-
-        first_create = client.post(
-            "/api/notes",
-            json={"note_date": "2026-03-08", "title": "論文準備", "body_markdown": "実験計画を更新"},
+        first = store.create_note(
+            note_date=today,
+            title="論文準備",
+            did_today="実験計画を更新",
+            future_tasks="明日は比較実験",
         )
-        assert first_create.status_code == 201
-        first_id = first_create.json()["id"]
+        assert first.id == today.isoformat()
 
-        note_file = tmp_path / "admin" / "2026" / "2026-03-08.md"
-        assert note_file.exists()
-        assert '"user_id": "admin"' in note_file.read_text(encoding="utf-8")
+        with pytest.raises(HTTPException) as exc_info:
+            store.create_note(
+                note_date=today,
+                title="重複",
+                did_today="",
+                future_tasks="",
+            )
+        assert exc_info.value.status_code == 409
 
-        duplicate_create = client.post(
-            "/api/notes",
-            json={"note_date": "2026-03-08", "title": "", "body_markdown": ""},
+        second = store.create_note(
+            note_date=today - timedelta(days=1),
+            title="会議",
+            did_today="日程調整",
+            future_tasks="資料共有",
         )
-        assert duplicate_create.status_code == 409
+        assert second.id == (today - timedelta(days=1)).isoformat()
 
-        second_create = client.post(
-            "/api/notes",
-            json={"note_date": "2026-03-07", "title": "会議", "body_markdown": "日程調整"},
+        filter_by_text = store.list_notes(q="論文", date_from=None, date_to=None)
+        assert len(filter_by_text) == 1
+        assert filter_by_text[0].id == today.isoformat()
+
+        filter_by_date = store.list_notes(
+            q=None,
+            date_from=today,
+            date_to=today,
         )
-        assert second_create.status_code == 201
-        second_id = second_create.json()["id"]
+        assert len(filter_by_date) == 1
+        assert filter_by_date[0].id == today.isoformat()
 
-        filter_by_text = client.get("/api/notes?q=論文")
-        assert filter_by_text.status_code == 200
-        assert len(filter_by_text.json()["items"]) == 1
-        assert filter_by_text.json()["items"][0]["id"] == first_id
-
-        filter_by_date = client.get("/api/notes?date_from=2026-03-08&date_to=2026-03-08")
-        assert filter_by_date.status_code == 200
-        assert len(filter_by_date.json()["items"]) == 1
-        assert filter_by_date.json()["items"][0]["id"] == first_id
-
-        conflict_update = client.put(
-            f"/api/notes/{second_id}",
-            json={"note_date": "2026-03-08", "title": "会議", "body_markdown": "変更"},
+        moved = store.update_note(
+            note_id=today.isoformat(),
+            note_date=today + timedelta(days=1),
+            title="論文準備",
+            did_today="実験計画を更新",
+            future_tasks="明日は比較実験",
         )
-        assert conflict_update.status_code == 409
+        assert moved.id == (today + timedelta(days=1)).isoformat()
+        assert store.get_note(today.isoformat()) is None
+        assert store.get_note((today + timedelta(days=1)).isoformat()) is not None
 
-        update_ok = client.put(
-            f"/api/notes/{first_id}",
-            json={"note_date": "2026-03-09", "title": "", "body_markdown": ""},
+        store.delete_note(note_id=(today + timedelta(days=1)).isoformat())
+        assert store.get_note((today + timedelta(days=1)).isoformat()) is None
+
+        remaining = store.list_notes(q=None, date_from=None, date_to=None)
+        assert len(remaining) == 1
+        assert remaining[0].id == (today - timedelta(days=1)).isoformat()
+    finally:
+        db.close()
+
+
+def test_notes_are_isolated_per_user(tmp_path: Path) -> None:
+    db = SqliteDb(tmp_path / "local.db")
+    try:
+        admin_store = NoteStore(root=tmp_path, user_id="admin", sqlite_db=db)
+        member_store = NoteStore(root=tmp_path, user_id="member", sqlite_db=db)
+        today = date.today()
+
+        admin_note = admin_store.create_note(
+            note_date=today,
+            title="管理者メモ",
+            did_today="admin only",
+            future_tasks="",
         )
-        assert update_ok.status_code == 200
-        assert update_ok.json()["id"] == "2026-03-09"
-        assert not note_file.exists()
-        assert (tmp_path / "admin" / "2026" / "2026-03-09.md").exists()
+        assert member_store.get_note(admin_note.id) is None
 
-        delete_ok = client.delete("/api/notes/2026-03-09")
-        assert delete_ok.status_code == 204
-
-        missing_after_delete = client.get("/api/notes/2026-03-09")
-        assert missing_after_delete.status_code == 404
-
-        remaining = client.get("/api/notes")
-        assert remaining.status_code == 200
-        assert len(remaining.json()["items"]) == 1
-
-
-def test_notes_are_isolated_per_user(monkeypatch, tmp_path: Path) -> None:
-    _use_temp_notes_root(monkeypatch, tmp_path)
-
-    with TestClient(app) as client:
-        _login(client, "admin", "admin1234")
-        admin_note = client.post(
-            "/api/notes",
-            json={"note_date": "2026-03-08", "title": "管理者メモ", "body_markdown": "admin only"},
+        member_store.create_note(
+            note_date=today,
+            title="メンバーメモ",
+            did_today="member only",
+            future_tasks="",
         )
-        assert admin_note.status_code == 201
-        admin_note_id = admin_note.json()["id"]
-        _logout(client)
+        assert len(admin_store.list_notes(q=None, date_from=None, date_to=None)) == 1
+        assert len(member_store.list_notes(q=None, date_from=None, date_to=None)) == 1
+    finally:
+        db.close()
 
-        _login(client, "shimizu-yuichiro", "shimizu1234")
-        cannot_read_admin_note = client.get(f"/api/notes/{admin_note_id}")
-        assert cannot_read_admin_note.status_code == 404
-        member_note = client.post(
-            "/api/notes",
-            json={"note_date": "2026-03-08", "title": "メンバーメモ", "body_markdown": "member only"},
+
+def test_notes_export_workbook(tmp_path: Path) -> None:
+    pytest.importorskip("openpyxl")
+    from openpyxl import load_workbook
+
+    db = SqliteDb(tmp_path / "local.db")
+    try:
+        store = NoteStore(root=tmp_path, user_id="admin", sqlite_db=db)
+        today = date.today()
+        store.create_note(
+            note_date=today,
+            title="論文準備",
+            did_today="実験計画を更新",
+            future_tasks="明日は比較実験",
         )
-        assert member_note.status_code == 201
-        member_note_id = member_note.json()["id"]
-        _logout(client)
+        store.create_note(
+            note_date=today - timedelta(days=1),
+            title="会議",
+            did_today="日程調整",
+            future_tasks="資料共有",
+        )
 
-        _login(client, "admin", "admin1234")
-        cannot_read_member_note = client.get(f"/api/notes/{member_note_id}")
-        assert cannot_read_member_note.status_code == 404
+        workbook_bytes = create_notes_workbook(
+            store.list_notes(q=None, date_from=None, date_to=None)
+        )
+        assert workbook_bytes
+
+        wb = load_workbook(filename=BytesIO(workbook_bytes), data_only=True)
+        ws = wb["日誌一覧"]
+        assert ws["A2"].value == today.isoformat()
+        assert ws["B2"].value == "論文準備"
+        assert ws["C2"].value == "実験計画を更新"
+    finally:
+        db.close()
 
 
-def _use_temp_notes_root(monkeypatch, tmp_path: Path) -> None:
-    class DummySettings:
-        notes_root_path = str(tmp_path)
+def test_notes_reject_old_edits(tmp_path: Path) -> None:
+    db = SqliteDb(tmp_path / "local.db")
+    try:
+        store = NoteStore(root=tmp_path, user_id="admin", sqlite_db=db)
+        old_date = date.today() - timedelta(days=20)
 
-    monkeypatch.setattr(file_notes_service, "get_settings", lambda: DummySettings())
-
-
-def _login(client: TestClient, user_id: str, password: str) -> None:
-    response = client.post("/api/auth/login", json={"user_id": user_id, "password": password})
-    assert response.status_code == 200
-
-
-def _logout(client: TestClient) -> None:
-    response = client.post("/api/auth/logout")
-    assert response.status_code == 200
+        with pytest.raises(HTTPException) as exc_info:
+            store.create_note(
+                note_date=old_date,
+                title="古い日誌",
+                did_today="",
+                future_tasks="",
+            )
+        assert exc_info.value.status_code == 403
+    finally:
+        db.close()

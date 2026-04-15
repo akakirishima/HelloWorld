@@ -14,6 +14,7 @@ from app.store.user_store import UserStore
 
 @dataclass
 class Stores:
+    sqlite_db: SqliteDb | None
     users: UserStore
     rooms: RoomStore
     presence: PresenceStore
@@ -24,9 +25,10 @@ class Stores:
 
 def make_stores(root: Path, sqlite_db: SqliteDb | None = None) -> Stores:
     return Stores(
-        users=UserStore(root),
-        rooms=RoomStore(root),
-        presence=PresenceStore(root),
+        sqlite_db=sqlite_db,
+        users=UserStore(root, sqlite_db=sqlite_db),
+        rooms=RoomStore(root, sqlite_db=sqlite_db),
+        presence=PresenceStore(root, sqlite_db=sqlite_db),
         sessions=SessionStore(root, sqlite_db=sqlite_db),
         status_changes=StatusChangeStore(root, sqlite_db=sqlite_db),
         audit=AuditStore(root, sqlite_db=sqlite_db),

@@ -10,21 +10,25 @@ test("管理者で主要画面と board 専用ページを表示できる", asyn
   await page.getByRole("button", { name: "ログイン" }).click();
 
   await expect(page).toHaveURL(/\/admin\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "在室ステータスボード", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "在室ステータスマトリクス / 研究室全体", exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("情報処理研究室", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /^E103$/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^E710$/ })).toBeVisible();
 
   await page.getByRole("button", { name: /^E710$/ }).click();
-  expect(await page.locator("[data-testid^='matrix-row-']").count()).toBeGreaterThan(0);
+  await expect(page.getByTestId("status-card-grid")).toBeVisible();
+  expect(await page.locator("[data-testid='status-card-grid'] article").count()).toBeGreaterThan(0);
   await expect(page.getByText("Shimizu Yuichiro", { exact: false }).first()).toBeVisible();
-  await expect(page.getByText("(M2)", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Lab", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("class", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Home", { exact: true }).first()).toBeVisible();
 
-  await page.getByRole("button", { name: "研究室全体" }).click();
-  await page.getByTestId("matrix-cell-nakashima-remon-room").click();
-  await expect(page.getByLabel("Nakashima Remon: Room")).toBeVisible();
-  await page.reload();
-  await expect(page.getByLabel("Nakashima Remon: Room")).toBeVisible();
+  const takahashiCard = page
+    .locator("[data-testid='status-card-grid'] article", { hasText: "高橋 未来" })
+    .first();
+  await takahashiCard.getByRole("button", { name: "Home" }).click();
 
   const boardPagePromise = page.context().waitForEvent("page");
   await page.getByRole("button", { name: "掲示板を開く" }).click();
@@ -33,14 +37,15 @@ test("管理者で主要画面と board 専用ページを表示できる", asyn
 
   await expect(page).toHaveURL(/\/admin\/dashboard$/);
   await expect(boardPage).toHaveURL(/\/admin\/dashboard\/board$/);
-  await expect(boardPage.getByRole("heading", { name: "情報処理研究室", exact: true })).toBeVisible();
-  await expect(boardPage.getByText("研究室業務 UI")).toHaveCount(0);
-  await expect(boardPage.getByRole("button", { name: "戻る" })).toHaveCount(0);
-
-  const board = boardPage.getByTestId("fullscreen-board");
-  await expect(board).toBeVisible();
-  await board.getByTestId("matrix-cell-tunn-cho-lwin-home").click();
-  await expect(board.getByLabel("Tunn Cho Lwin: Off Campus")).toBeVisible();
+  await expect(boardPage.getByText("Laboratory Board")).toHaveCount(0);
+  await expect(boardPage.getByText("情報処理研究室", { exact: true })).toHaveCount(0);
+  await expect(boardPage.getByText("研究室全体", { exact: true })).toHaveCount(0);
+  await expect(boardPage.getByTestId("status-card-grid")).toBeVisible();
+  await expect(boardPage.getByText("高橋 未来", { exact: false }).first()).toBeVisible();
+  await expect(boardPage.getByText("長谷川 澪", { exact: false }).first()).toBeVisible();
+  await expect(boardPage.getByText("中村 彩", { exact: false }).first()).toBeVisible();
+  expect(await boardPage.locator("[data-testid='status-card-grid'] article").count()).toBe(3);
+  await expect(boardPage.getByText("山田 智也", { exact: false })).toHaveCount(0);
 
   await expect(page).toHaveURL(/\/admin\/dashboard$/);
 

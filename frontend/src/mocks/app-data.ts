@@ -359,10 +359,9 @@ export const dashboardHighlights = [
 ];
 
 export const dashboardBoardSummary = [
-  { label: "在室中", value: "5 名" },
-  { label: "学内移動", value: "1 名" },
-  { label: "授業・セミナー", value: "2 名" },
-  { label: "学外 / Home", value: "1 名" },
+  { label: "Room", value: "5 名" },
+  { label: "Class", value: "2 名" },
+  { label: "Home", value: "1 名" },
 ] satisfies DashboardBoardSummaryItem[];
 
 export const initialDashboardMatrixRows: DashboardMatrixRow[] = presenceMembers.map((member) => ({
@@ -400,17 +399,13 @@ export function mapMatrixColumnToStatus(column: DashboardMatrixColumn): Presence
 
 export function buildDashboardBoardSummary(rows: DashboardMatrixRow[]): DashboardBoardSummaryItem[] {
   const roomCount = rows.filter((row) => row.activeColumn === "room").length;
-  const onCampusCount = rows.filter((row) => row.activeColumn === "onCampus").length;
-  const studyCount = rows.filter(
-    (row) => row.activeColumn === "class" || row.activeColumn === "seminarMeeting",
-  ).length;
+  const classCount = rows.filter((row) => row.activeColumn === "class").length;
   const homeCount = rows.filter((row) => row.activeColumn === "home").length;
 
   return [
-    { label: "在室中", value: `${roomCount} 名` },
-    { label: "学内移動", value: `${onCampusCount} 名` },
-    { label: "授業・セミナー", value: `${studyCount} 名` },
-    { label: "学外 / Home", value: `${homeCount} 名` },
+    { label: "Room", value: `${roomCount} 名` },
+    { label: "Class", value: `${classCount} 名` },
+    { label: "Home", value: `${homeCount} 名` },
   ];
 }
 

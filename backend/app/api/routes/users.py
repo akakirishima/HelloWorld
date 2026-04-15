@@ -13,7 +13,7 @@ from app.models.user import UserRecord
 from app.schemas.users import CreateUserRequest, UpdateUserRequest, UserListResponse, UserResponse
 from app.services.attendance_service import normalize_datetime
 from app.services.audit_service import create_audit_log
-from app.services.file_notes_service import FileNotesStore
+from app.store.note_store import NoteStore
 
 router = APIRouter(prefix="/users")
 
@@ -68,6 +68,7 @@ def create_user(payload: CreateUserRequest, admin: AdminUser, stores: AppStores)
         target_id=user.user_id,
         after_json={"user_id": user.user_id, "room_id": user.room_id, "role": user.role},
     )
+
     rooms = {r.id: r for r in stores.rooms.list_rooms()}
     presences = {p.user_id: p for p in stores.presence.list_all()}
     return serialize_user(user, presences.get(user.user_id), rooms)
@@ -113,6 +114,19 @@ def update_user(
     return serialize_user(user, presences.get(user.user_id), rooms)
 
 
+@router.post("/{user_id}/disable", response_model=UserResponse)
+def disable_user(user_id: str, admin: AdminUser, stores: AppStores) -> UserResponse:
+    user = stores.users.get_by_user_id(user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    if admin.user_id == user_id:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot disable your own account.")
+    user = stores.users.save(user.model_copy(update={"is_active": False}))
+    rooms = {r.id: r for r in stores.rooms.list_rooms()}
+    presences = {p.user_id: p for p in stores.presence.list_all()}
+    return serialize_user(user, presences.get(user.user_id), rooms)
+
+
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(user_id: str, admin: AdminUser, stores: AppStores) -> None:
     user = stores.users.get_by_user_id(user_id)
@@ -146,7 +160,7 @@ def delete_user(user_id: str, admin: AdminUser, stores: AppStores) -> None:
             "close_reason": "user_deleted",
         }))
 
-    # 削除操作を監査ログに記録（NAS CSVには残る）
+    # 削除操作を監査ログに記録（SQLite に残る）
     create_audit_log(
         stores.audit,
         actor_user_id=admin.user_id,
@@ -157,9 +171,11 @@ def delete_user(user_id: str, admin: AdminUser, stores: AppStores) -> None:
     )
 
     # 全関連データを削除（末梢 → 中心の順）
-    settings = get_settings()
-    notes_root = Path(settings.data_root_path) / "notes"
-    FileNotesStore(user_id=user_id, root_path=notes_root).delete_all_for_user()
+    NoteStore(
+        root=Path(get_settings().data_root_path),
+        user_id=user_id,
+        sqlite_db=stores.sqlite_db,
+    ).delete_by_user(user_id)
     stores.status_changes.delete_by_user(user_id)
     stores.sessions.delete_by_user(user_id)
     stores.audit.delete_by_user(user_id)

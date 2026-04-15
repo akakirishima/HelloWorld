@@ -93,6 +93,7 @@ type LabBoardContextValue = {
   updateUserRoom: (userId: string, roomId: string | null) => Promise<void>;
   updateUserGrade: (userId: string, academicGrade: AcademicGrade) => Promise<void>;
   deleteUser: (userId: string) => Promise<void>;
+  deleteRoom: (roomId: string) => Promise<void>;
   createUser: (payload: CreateUserPayload) => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -253,6 +254,10 @@ export function LabBoardProvider({ children }: { children: ReactNode }) {
       },
       async deleteUser(userId) {
         await apiFetch(`/users/${userId}`, { method: "DELETE" });
+        await refreshFromApi();
+      },
+      async deleteRoom(roomId) {
+        await apiFetch(`/rooms/${Number(roomId)}`, { method: "DELETE" });
         await refreshFromApi();
       },
       async createUser(payload) {

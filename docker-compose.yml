@@ -7,7 +7,9 @@ services:
     environment:
       APP_ENV: development
       DATA_ROOT_PATH: /app/data/nas
+      CONTACT_TIME_ROOT_PATH: /app/data/nas
       SQLITE_PATH: /app/data/local.db
+      BACKUP_ROOT_PATH: /app/data/nas/backups
       CORS_ORIGINS: http://localhost:5173,http://localhost:8088
     volumes:
       - ./backend:/app
