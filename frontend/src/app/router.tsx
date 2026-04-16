@@ -15,6 +15,7 @@ import { DashboardPage } from "@/pages/dashboard-page";
 import { LoginPage } from "@/pages/login-page";
 import { NotesPage } from "@/pages/notes-page";
 import { SessionsPage } from "@/pages/sessions-page";
+import { LabBoardProvider } from "@/features/lab-board/lab-board-context";
 
 export const router = createBrowserRouter([
   {
@@ -27,7 +28,11 @@ export const router = createBrowserRouter([
   },
   {
     path: "/admin/dashboard/board",
-    element: <DashboardBoardPage />,
+    element: (
+      <LabBoardProvider>
+        <DashboardBoardPage />
+      </LabBoardProvider>
+    ),
   },
   {
     path: "/",
