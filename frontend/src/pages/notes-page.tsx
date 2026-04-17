@@ -37,7 +37,7 @@ type NoteFormState = {
 };
 
 function todayString(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toJstDateString(new Date());
 }
 
 const EMPTY_FORM: NoteFormState = {
@@ -498,20 +498,18 @@ function canEditNoteDate(noteDate: string): boolean {
   return selected >= cutoff;
 }
 
+function toJstDateString(date: Date): string {
+  return new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 function sessionToDate(isoString: string): string {
-  const d = new Date(isoString);
-  // JST (UTC+9) に変換して日付部分を取得
-  const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-  return jst.toISOString().slice(0, 10);
+  return toJstDateString(new Date(isoString));
 }
 
 function recentDateWindow(): { startDate: string; endDate: string } {
-  const end = new Date();
-  end.setHours(0, 0, 0, 0);
-  const start = new Date(end);
-  start.setDate(start.getDate() - 13);
-  return {
-    startDate: start.toISOString().slice(0, 10),
-    endDate: end.toISOString().slice(0, 10),
-  };
+  const endDate = toJstDateString(new Date());
+  // 13日前を JST で計算
+  const startMs = Date.now() + 9 * 60 * 60 * 1000 - 13 * 24 * 60 * 60 * 1000;
+  const startDate = new Date(startMs).toISOString().slice(0, 10);
+  return { startDate, endDate };
 }

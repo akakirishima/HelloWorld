@@ -19,3 +19,4 @@ class SessionCloseReason(str, Enum):
     MANUAL_CHECKOUT = "manual_checkout"
     AUTO_TIMEOUT = "auto_timeout"
     ADMIN_CORRECTION = "admin_correction"
+    AUTO_CLOSE_DAILY = "auto_close_daily"

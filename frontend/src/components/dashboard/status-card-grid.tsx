@@ -149,7 +149,7 @@ function StatusCard({
           <StatusSection
             key={section.key}
             fillPct={getFillPct(section.key)}
-            isPressing={pressing === section.key}
+            noTransition={pressing !== null && (section.key === pressing || section.key === activeSection)}
             fillViewport={fillViewport}
             iconSizes={iconSizes}
             label={section.label}
@@ -201,7 +201,7 @@ function buildNameStyle(name: string, fillViewport: boolean, rowCount = 6): CSSP
 
 function StatusSection({
   fillPct,
-  isPressing,
+  noTransition,
   label,
   sectionKey,
   fillViewport,
@@ -210,7 +210,7 @@ function StatusSection({
   onPressEnd,
 }: {
   fillPct: number;
-  isPressing: boolean;
+  noTransition: boolean;
   label: string;
   sectionKey: SectionKey;
   fillViewport: boolean;
@@ -244,7 +244,7 @@ function StatusSection({
         className={cn("absolute bottom-0 left-0 right-0", theme.fillBg)}
         style={{
           height: `${fillPct * 100}%`,
-          transition: isPressing ? "none" : "height 250ms ease-out",
+          transition: noTransition ? "none" : "height 250ms ease-out",
         }}
       />
 

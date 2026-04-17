@@ -4,9 +4,8 @@ import { ApiError, apiFetch } from "@/api/client";
 import { DataRow, DataTable } from "@/components/ui/data-table";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
-import { ToolbarButton } from "@/components/ui/toolbar-button";
 
-const sessionColumns = ["日付", "出勤時刻", "退勤時刻", "滞在時間"];
+const sessionColumns = ["日付", "出勤", "退勤", "滞在時間"];
 
 type SessionApiItem = {
   id: number;
@@ -20,6 +19,13 @@ type SessionApiItem = {
 
 type SessionListResponse = {
   items: SessionApiItem[];
+};
+
+type DayRow = {
+  date: string;
+  checkIn: string;
+  checkOut: string;
+  duration: string;
 };
 
 export function SessionsPage() {
@@ -48,28 +54,50 @@ export function SessionsPage() {
     void run();
   }, []);
 
-  const sessionRows = useMemo(
-    () =>
-      sessions.map((item) => ({
-        id: item.id,
-        date: formatDate(item.check_in_at),
-        checkInAt: formatTime(item.check_in_at),
-        checkOutAt: item.check_out_at ? formatTime(item.check_out_at) : "未退勤",
-        duration: item.duration_sec === null ? "--:--" : formatDuration(item.duration_sec),
-      })),
-    [sessions],
-  );
+  const dayRows = useMemo<DayRow[]>(() => {
+    // JST 日付でグループ化
+    const byDate = new Map<string, SessionApiItem[]>();
+    for (const item of sessions) {
+      const date = toJstDate(item.check_in_at);
+      const group = byDate.get(date) ?? [];
+      group.push(item);
+      byDate.set(date, group);
+    }
+
+    return [...byDate.entries()]
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([date, items]) => {
+        // check_in_at 昇順でソート
+        const sorted = [...items].sort((a, b) =>
+          a.check_in_at.localeCompare(b.check_in_at),
+        );
+        const firstIn = formatTime(sorted[0].check_in_at);
+        const lastItem = sorted[sorted.length - 1];
+        const lastOut = lastItem.check_out_at ? formatTime(lastItem.check_out_at) : "未退勤";
+
+        const totalSec = items.reduce<number | null>((acc, s) => {
+          if (acc === null || s.duration_sec === null) return null;
+          return acc + s.duration_sec;
+        }, 0);
+
+        return {
+          date,
+          checkIn: firstIn,
+          checkOut: lastOut,
+          duration: totalSec === null ? "—" : formatDuration(totalSec),
+        };
+      });
+  }, [sessions]);
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         eyebrow="Sessions"
         title="勤怠履歴"
-        description="シンプルな一覧で、自分の出退勤を確認する画面です。"
-        actions={<ToolbarButton label="CSV 出力" />}
+        description="日付ごとの出退勤をまとめて確認できます。"
       />
 
-      <Panel title="履歴一覧" description="出勤・退勤・滞在時間だけを見せます。">
+      <Panel title="履歴一覧">
         <div className="space-y-4">
           {loadError ? (
             <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -79,16 +107,13 @@ export function SessionsPage() {
           <DataTable columns={sessionColumns}>
             {isLoading ? (
               <DataRow cells={["読み込み中...", "-", "-", "-"]} />
+            ) : dayRows.length === 0 ? (
+              <DataRow cells={["記録なし", "-", "-", "-"]} />
             ) : (
-              sessionRows.map((item) => (
+              dayRows.map((row) => (
                 <DataRow
-                  key={item.id}
-                  cells={[
-                    item.date,
-                    item.checkInAt,
-                    item.checkOutAt,
-                    item.duration,
-                  ]}
+                  key={row.date}
+                  cells={[row.date, row.checkIn, row.checkOut, row.duration]}
                 />
               ))
             )}
@@ -99,11 +124,10 @@ export function SessionsPage() {
   );
 }
 
-function formatDate(value: string): string {
+/** UTC ISO 文字列 → JST "YYYY-MM-DD" */
+function toJstDate(value: string): string {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
+  if (Number.isNaN(date.getTime())) return "-";
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
     month: "2-digit",
@@ -116,9 +140,7 @@ function formatDate(value: string): string {
 
 function formatTime(value: string): string {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "--:--";
-  }
+  if (Number.isNaN(date.getTime())) return "--:--";
   return new Intl.DateTimeFormat("ja-JP", {
     hour: "2-digit",
     minute: "2-digit",
@@ -127,9 +149,8 @@ function formatTime(value: string): string {
   }).format(date);
 }
 
-function formatDuration(durationSec: number): string {
-  const totalMinutes = Math.floor(durationSec / 60);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+/** 秒 → "1.5h" 形式（0分台は "0.0h"） */
+function formatDuration(sec: number): string {
+  const h = sec / 3600;
+  return `${Math.round(h * 10) / 10}h`;
 }
