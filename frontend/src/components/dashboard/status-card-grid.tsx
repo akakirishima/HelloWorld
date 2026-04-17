@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import type { DashboardMatrixRow } from "@/types/app";
 
 import { FlaskConical, GraduationCap, Home } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -58,6 +59,8 @@ export function StatusCardGrid({
   );
 }
 
+const HOLD_MS = 700;
+
 function StatusCard({
   row,
   fillViewport,
@@ -69,10 +72,55 @@ function StatusCard({
   rowCount: number;
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
 }) {
-  const activeSection = mapRowToSection(row);
+  const serverActive = mapRowToSection(row);
+  const [localActive, setLocalActive] = useState<SectionKey | null>(null);
+  const [pressing, setPressing] = useState<SectionKey | null>(null);
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef(0);
+
+  // サーバー状態が変わったら楽観的表示をリセット
+  useEffect(() => {
+    setLocalActive(null);
+  }, [serverActive]);
+
+  const activeSection = localActive ?? serverActive;
   const nameStyle = buildNameStyle(row.name, fillViewport, rowCount);
   const theme = sectionThemes[activeSection];
   const iconSizes = computeIconSizes(rowCount, fillViewport);
+
+  const getFillPct = (key: SectionKey): number => {
+    if (pressing && pressing !== activeSection) {
+      if (key === pressing) return progress;
+      if (key === activeSection) return 1 - progress;
+      return 0;
+    }
+    return key === activeSection ? 1 : 0;
+  };
+
+  const handlePressStart = (section: SectionKey) => {
+    if (section === activeSection) return;
+    setPressing(section);
+    setProgress(0);
+    startTimeRef.current = Date.now();
+    timerRef.current = setInterval(() => {
+      const p = Math.min(1, (Date.now() - startTimeRef.current) / HOLD_MS);
+      setProgress(p);
+      if (p >= 1) {
+        clearInterval(timerRef.current!);
+        setLocalActive(section);
+        setPressing(null);
+        setProgress(0);
+        void onSectionSelect?.(row.id, section);
+      }
+    }, 16);
+  };
+
+  const handlePressEnd = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setPressing(null);
+    setProgress(0);
+  };
 
   return (
     <article
@@ -100,15 +148,14 @@ function StatusCard({
         {sections.map((section) => (
           <StatusSection
             key={section.key}
-            active={section.key === activeSection}
-            cardActiveSection={activeSection}
+            fillPct={getFillPct(section.key)}
+            isPressing={pressing === section.key}
             fillViewport={fillViewport}
             iconSizes={iconSizes}
             label={section.label}
             sectionKey={section.key}
-            onClick={() => {
-              void onSectionSelect?.(row.id, section.key);
-            }}
+            onPressStart={() => handlePressStart(section.key)}
+            onPressEnd={handlePressEnd}
           />
         ))}
       </div>
@@ -153,32 +200,33 @@ function buildNameStyle(name: string, fillViewport: boolean, rowCount = 6): CSSP
 }
 
 function StatusSection({
-  active,
-  cardActiveSection,
+  fillPct,
+  isPressing,
   label,
   sectionKey,
   fillViewport,
   iconSizes,
-  onClick,
+  onPressStart,
+  onPressEnd,
 }: {
-  active: boolean;
-  cardActiveSection: SectionKey;
+  fillPct: number;
+  isPressing: boolean;
   label: string;
   sectionKey: SectionKey;
   fillViewport: boolean;
   iconSizes: IconSizes;
-  onClick: () => void;
+  onPressStart: () => void;
+  onPressEnd: () => void;
 }) {
   const Icon = sectionIcons[sectionKey];
-  const sectionTheme = sectionThemes[sectionKey];
-  const cardTheme = sectionThemes[cardActiveSection];
+  const theme = sectionThemes[sectionKey];
+  const lit = fillPct > 0.5;
 
   return (
     <button
       type="button"
       className={cn(
-        "flex h-full flex-col items-center justify-center gap-1.5 px-2 text-center transition-colors",
-        active ? sectionTheme.activeBg : cardTheme.inactiveBg,
+        "relative flex h-full flex-col items-center justify-center gap-1.5 overflow-hidden px-2 text-center select-none",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-inset",
       )}
       style={
@@ -186,34 +234,34 @@ function StatusSection({
           ? { paddingTop: iconSizes.sectionPad, paddingBottom: iconSizes.sectionPad }
           : { minHeight: 84, paddingTop: 10, paddingBottom: 10 }
       }
-      onClick={onClick}
+      onPointerDown={onPressStart}
+      onPointerUp={onPressEnd}
+      onPointerLeave={onPressEnd}
+      onPointerCancel={onPressEnd}
     >
-      {active ? (
-        <span
-          className={cn(
-            "inline-flex items-center justify-center rounded-full border",
-            sectionTheme.iconActiveBorder,
-            sectionTheme.iconActiveBg,
-          )}
-          style={{ width: iconSizes.circleSize, height: iconSizes.circleSize }}
-          aria-hidden="true"
-        >
-          <Icon
-            className={sectionTheme.iconActiveText}
-            style={{ width: iconSizes.iconInCircle, height: iconSizes.iconInCircle }}
-            strokeWidth={2.25}
-          />
-        </span>
-      ) : (
-        <Icon
-          className={cardTheme.iconInactiveText}
-          style={{ width: iconSizes.iconBare, height: iconSizes.iconBare }}
-          strokeWidth={2}
-          aria-hidden="true"
-        />
-      )}
+      {/* フィル背景（下から上） */}
+      <div
+        className={cn("absolute bottom-0 left-0 right-0", theme.fillBg)}
+        style={{
+          height: `${fillPct * 100}%`,
+          transition: isPressing ? "none" : "height 250ms ease-out",
+        }}
+      />
+
+      <Icon
+        className={cn(
+          "relative z-10 transition-colors duration-150",
+          lit ? theme.textActive : theme.iconInactiveText,
+        )}
+        style={{ width: iconSizes.iconBare, height: iconSizes.iconBare }}
+        strokeWidth={2}
+        aria-hidden="true"
+      />
       <span
-        className={cn("font-semibold capitalize tracking-[0.01em]", active ? sectionTheme.textActive : cardTheme.textInactive)}
+        className={cn(
+          "relative z-10 font-semibold capitalize tracking-[0.01em] transition-colors duration-150",
+          lit ? theme.textActive : theme.textInactive,
+        )}
         style={{ fontSize: iconSizes.fontSize, lineHeight: 1.1 }}
       >
         {label}
@@ -240,6 +288,7 @@ const sectionThemes: Record<
     activeBg: string;
     cardBg: string;
     cardBorder: string;
+    fillBg: string;
     headerBg: string;
     headerBorder: string;
     iconActiveBg: string;
@@ -260,6 +309,7 @@ const sectionThemes: Record<
     activeBg: "bg-emerald-50",
     cardBg: "bg-white",
     cardBorder: "border-emerald-200",
+    fillBg: "bg-emerald-100",
     headerBg: "bg-white",
     headerBorder: "border-emerald-100",
     iconActiveBg: "bg-emerald-500",
@@ -279,6 +329,7 @@ const sectionThemes: Record<
     activeBg: "bg-sky-50",
     cardBg: "bg-white",
     cardBorder: "border-sky-200",
+    fillBg: "bg-sky-100",
     headerBg: "bg-white",
     headerBorder: "border-sky-100",
     iconActiveBg: "bg-sky-500",
@@ -298,6 +349,7 @@ const sectionThemes: Record<
     activeBg: "bg-slate-100",
     cardBg: "bg-slate-50",
     cardBorder: "border-slate-200",
+    fillBg: "bg-slate-200",
     headerBg: "bg-slate-50",
     headerBorder: "border-slate-200",
     iconActiveBg: "bg-slate-500",
