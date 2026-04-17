@@ -125,7 +125,7 @@ function StatusCard({
   return (
     <article
       className={cn(
-        "min-w-0 overflow-hidden rounded-[28px] border shadow-soft",
+        "min-w-0 overflow-hidden rounded-[28px] border-2 shadow-soft",
         fillViewport ? "flex h-full flex-col" : "",
         theme.cardBorder,
         theme.cardBg,
@@ -308,7 +308,7 @@ const sectionThemes: Record<
   lab: {
     activeBg: "bg-emerald-100",
     cardBg: "bg-emerald-50",
-    cardBorder: "border-emerald-200",
+    cardBorder: "border-emerald-400",
     fillBg: "bg-emerald-200",
     headerBg: "bg-emerald-100",
     headerBorder: "border-emerald-200",
@@ -328,7 +328,7 @@ const sectionThemes: Record<
   class: {
     activeBg: "bg-sky-100",
     cardBg: "bg-sky-50",
-    cardBorder: "border-sky-200",
+    cardBorder: "border-sky-400",
     fillBg: "bg-sky-200",
     headerBg: "bg-sky-100",
     headerBorder: "border-sky-200",
@@ -348,7 +348,7 @@ const sectionThemes: Record<
   home: {
     activeBg: "bg-slate-200",
     cardBg: "bg-slate-100",
-    cardBorder: "border-slate-300",
+    cardBorder: "border-slate-400",
     fillBg: "bg-slate-300",
     headerBg: "bg-slate-200",
     headerBorder: "border-slate-300",
