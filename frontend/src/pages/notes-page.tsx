@@ -19,6 +19,15 @@ type NotesResponse = {
   items: NoteRecord[];
 };
 
+type SessionItem = {
+  id: number;
+  check_in_at: string;
+};
+
+type SessionsResponse = {
+  items: SessionItem[];
+};
+
 type NoteFormState = {
   id: string | null;
   noteDate: string;
@@ -41,6 +50,7 @@ const EMPTY_FORM: NoteFormState = {
 
 export function NotesPage() {
   const [notes, setNotes] = useState<NoteRecord[]>([]);
+  const [sessionDates, setSessionDates] = useState<Set<string>>(new Set());
   const [form, setForm] = useState<NoteFormState>(EMPTY_FORM);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -54,23 +64,27 @@ export function NotesPage() {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const params = new URLSearchParams();
         const { startDate, endDate } = recentDateWindow();
-        params.set("date_from", startDate);
-        params.set("date_to", endDate);
-        const suffix = params.toString();
-        const payload = await apiFetch<NotesResponse>(`/notes${suffix ? `?${suffix}` : ""}`);
-        setNotes(payload.items);
+        const [notesPayload, sessionsPayload] = await Promise.all([
+          apiFetch<NotesResponse>(`/notes?date_from=${startDate}&date_to=${endDate}`),
+          apiFetch<SessionsResponse>("/sessions/me").catch(() => ({ items: [] })),
+        ]);
+
+        setNotes(notesPayload.items);
+
+        // 過去2週間分の出勤日を抽出
+        const dates = new Set<string>();
+        for (const s of sessionsPayload.items) {
+          const d = sessionToDate(s.check_in_at);
+          if (d >= startDate && d <= endDate) dates.add(d);
+        }
+        setSessionDates(dates);
+
+        // selectedId が明示的に渡された場合だけ選択。デフォルトは新規作成フォームのまま。
         setForm((current) => {
-          const targetId = selectedId ?? current.id;
-          if (targetId !== null) {
-            const selected = payload.items.find((item) => item.id === targetId);
-            if (selected) return noteToForm(selected);
-          }
-          if (payload.items.length > 0 && current.title === "" && current.didToday === "") {
-            return noteToForm(payload.items[0]);
-          }
-          if (payload.items.length === 0 && targetId !== null) {
+          if (selectedId !== undefined && selectedId !== null) {
+            const found = notesPayload.items.find((item) => item.id === selectedId);
+            if (found) return noteToForm(found);
             return { ...EMPTY_FORM, noteDate: todayString() };
           }
           return current;
@@ -88,14 +102,21 @@ export function NotesPage() {
     void fetchNotes();
   }, [fetchNotes]);
 
-  const sortedNotes = useMemo(
-    () =>
-      [...notes].sort((a, b) => {
-        if (a.note_date === b.note_date) return b.updated_at.localeCompare(a.updated_at);
-        return b.note_date.localeCompare(a.note_date);
-      }),
-    [notes],
-  );
+  // 日誌あり + 出勤日のみ（日誌なし）を合わせた一覧
+  const mergedList = useMemo(() => {
+    const { startDate, endDate } = recentDateWindow();
+    const notesByDate = new Map(notes.map((n) => [n.note_date, n]));
+    const allDates = new Set([...notes.map((n) => n.note_date), ...sessionDates]);
+    return [...allDates]
+      .filter((d) => d >= startDate && d <= endDate)
+      .sort((a, b) => b.localeCompare(a))
+      .map((date) => {
+        const note = notesByDate.get(date);
+        return note
+          ? ({ type: "note" as const, note, date })
+          : ({ type: "placeholder" as const, date });
+      });
+  }, [notes, sessionDates]);
   const canEditCurrentForm = canEditNoteDate(form.noteDate);
 
   const openCreateForm = () => {
@@ -234,49 +255,78 @@ export function NotesPage() {
               <div className="rounded-3xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500">
                 読み込み中...
               </div>
-            ) : sortedNotes.length === 0 ? (
+            ) : mergedList.length === 0 ? (
               <div className="rounded-3xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500">
-                日誌がありません
+                出勤・日誌の記録がありません
               </div>
             ) : (
               <div className="grid gap-3">
-                {sortedNotes.map((item) => {
-                  const isSelected = form.id === item.id;
+                {mergedList.map((item) => {
+                  if (item.type === "note") {
+                    const isSelected = form.id === item.note.id;
+                    return (
+                      <button
+                        key={item.note.id}
+                        className={[
+                          "w-full rounded-3xl border px-5 py-4 text-left transition",
+                          isSelected
+                            ? "border-sky-400 bg-sky-50 shadow-sm ring-2 ring-sky-200"
+                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
+                        ].join(" ")}
+                        onClick={() => selectNote(item.note)}
+                        type="button"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                {item.note.note_date}
+                              </p>
+                              {isSelected && (
+                                <span className="rounded-full bg-sky-600 px-2.5 py-1 text-[11px] font-semibold text-white">
+                                  選択中
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-2 text-base font-semibold text-slate-950">
+                              {item.note.title || "(無題)"}
+                            </p>
+                            <p className="mt-2 line-clamp-2 text-sm text-slate-600">
+                              {excerpt(item.note.did_today)}
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-right text-xs text-slate-500">
+                            <p>更新</p>
+                            <p className="mt-1 font-medium text-slate-700">{toTime(item.note.updated_at)}</p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  }
+                  // 出勤あり・日誌未作成のプレースホルダー
+                  const isSelected = form.id === null && form.noteDate === item.date;
                   return (
                     <button
-                      key={item.id}
+                      key={`ph-${item.date}`}
                       className={[
                         "w-full rounded-3xl border px-5 py-4 text-left transition",
                         isSelected
-                          ? "border-sky-400 bg-sky-50 shadow-sm ring-2 ring-sky-200"
-                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
+                          ? "border-amber-400 bg-amber-50 shadow-sm ring-2 ring-amber-200"
+                          : "border-dashed border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-white",
                       ].join(" ")}
-                      onClick={() => selectNote(item)}
+                      onClick={() => { setForm({ ...EMPTY_FORM, noteDate: item.date }); setSaveError(null); setSaveMessage(null); }}
                       type="button"
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
-                              {item.note_date}
-                            </p>
-                            {isSelected ? (
-                              <span className="rounded-full bg-sky-600 px-2.5 py-1 text-[11px] font-semibold text-white">
-                                選択中
-                              </span>
-                            ) : null}
-                          </div>
-                          <p className="mt-2 text-base font-semibold text-slate-950">
-                            {item.title || "(無題)"}
+                      <div className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-400">
+                            {item.date}
                           </p>
-                          <p className="mt-2 line-clamp-2 text-sm text-slate-600">
-                            {excerpt(item.did_today)}
-                          </p>
+                          <p className="mt-1 text-sm text-slate-400">日誌未作成（出勤記録あり）</p>
                         </div>
-                        <div className="shrink-0 text-right text-xs text-slate-500">
-                          <p>更新</p>
-                          <p className="mt-1 font-medium text-slate-700">{toTime(item.updated_at)}</p>
-                        </div>
+                        <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                          未作成
+                        </span>
                       </div>
                     </button>
                   );
@@ -446,6 +496,13 @@ function canEditNoteDate(noteDate: string): boolean {
   const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() - 13);
   return selected >= cutoff;
+}
+
+function sessionToDate(isoString: string): string {
+  const d = new Date(isoString);
+  // JST (UTC+9) に変換して日付部分を取得
+  const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  return jst.toISOString().slice(0, 10);
 }
 
 function recentDateWindow(): { startDate: string; endDate: string } {
