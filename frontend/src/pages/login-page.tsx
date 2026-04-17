@@ -55,13 +55,15 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10">
-      <div className="grid w-full max-w-3xl gap-4 lg:grid-cols-[1fr_360px]">
+    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(245,251,255,0.9),_transparent_32%),linear-gradient(180deg,_#f4f8fb_0%,_#eef3f2_100%)] px-4 py-10">
+      <div className="grid w-full max-w-3xl gap-4 lg:grid-cols-[1fr_320px]">
 
-        {/* 説明パネル */}
-        <section className="rounded-2xl bg-slate-800 p-8 text-white">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Lab Management</p>
-          <h1 className="mt-4 text-2xl font-semibold leading-snug">
+        {/* 説明パネル — サイドバーと同じトーン */}
+        <section className="rounded-[32px] border border-white/70 bg-slate-950 p-8 text-white shadow-panel">
+          <p className="text-xs font-semibold uppercase tracking-[0.32em] text-teal-300">
+            Laboratory Ops
+          </p>
+          <h1 className="mt-4 text-2xl font-semibold leading-snug text-white">
             研究室の在室・勤怠・<br />日誌をひとつにまとめる
           </h1>
           <p className="mt-4 text-sm leading-7 text-slate-300">
@@ -69,22 +71,32 @@ export function LoginPage() {
             日誌の記録や勤怠の集計もこの画面から操作できます。
             アカウントは管理者が発行します。
           </p>
-          <ul className="mt-6 space-y-2 text-sm text-slate-400">
-            <li className="flex items-start gap-2"><span className="mt-0.5 text-slate-500">—</span>在室ボードでメンバーの状況をリアルタイム把握</li>
-            <li className="flex items-start gap-2"><span className="mt-0.5 text-slate-500">—</span>日誌・ノートを日付ごとに記録・閲覧</li>
-            <li className="flex items-start gap-2"><span className="mt-0.5 text-slate-500">—</span>管理者は勤怠集計・メンバー設定を一元管理</li>
+          <ul className="mt-6 space-y-2.5 text-sm text-slate-400">
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 text-teal-500">—</span>
+              在室ボードでメンバーの状況をリアルタイム把握
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 text-teal-500">—</span>
+              日誌・ノートを日付ごとに記録・閲覧
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="mt-0.5 text-teal-500">—</span>
+              管理者は勤怠集計・メンバー設定を一元管理
+            </li>
           </ul>
         </section>
 
-        {/* ログインフォーム */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <h2 className="mb-6 text-lg font-semibold text-slate-800">ログイン</h2>
+        {/* ログインフォーム — コンテンツパネルと同じトーン */}
+        <section className="rounded-[32px] border border-white/70 bg-white/80 p-8 shadow-panel backdrop-blur">
+          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-slate-500">Sign In</p>
+          <h2 className="mt-2 mb-6 text-xl font-semibold text-slate-900">ログイン</h2>
 
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-            <label className="block space-y-1">
+            <label className="block space-y-1.5">
               <span className="text-sm font-medium text-slate-700">ユーザーID</span>
               <input
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white"
                 {...form.register("userId")}
                 autoComplete="username"
               />
@@ -93,10 +105,10 @@ export function LoginPage() {
               )}
             </label>
 
-            <label className="block space-y-1">
+            <label className="block space-y-1.5">
               <span className="text-sm font-medium text-slate-700">パスワード</span>
               <input
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:bg-white"
                 type="password"
                 {...form.register("password")}
                 autoComplete="current-password"
@@ -107,7 +119,7 @@ export function LoginPage() {
             </label>
 
             <button
-              className="w-full rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50"
+              className="w-full rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
               disabled={form.formState.isSubmitting}
               type="submit"
             >
@@ -116,7 +128,7 @@ export function LoginPage() {
           </form>
 
           {submitError && (
-            <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700">
+            <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {submitError}
             </p>
           )}
