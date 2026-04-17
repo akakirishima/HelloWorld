@@ -114,7 +114,7 @@ export function PageShell() {
             </div>
           ) : null}
 
-          <div className="mt-auto space-y-4">
+          <div className="mt-6 space-y-4">
             <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
               <p className="font-semibold">1研究室専用フロー</p>
               <p className="mt-2 leading-6 text-emerald-50/90">
