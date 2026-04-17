@@ -57,7 +57,12 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
       <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="mb-6 text-xl font-semibold text-slate-800">ログイン</h1>
+        <div className="mb-6">
+          <h1 className="text-xl font-semibold text-slate-800">ログイン</h1>
+          <p className="mt-1.5 text-sm text-slate-500">
+            研究室の在室・勤怠・日誌管理システムです。管理者から発行された ID とパスワードでログインしてください。
+          </p>
+        </div>
 
         <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
           <label className="block space-y-1">
