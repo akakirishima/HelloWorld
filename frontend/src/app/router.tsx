@@ -16,6 +16,7 @@ import { LoginPage } from "@/pages/login-page";
 import { NotesPage } from "@/pages/notes-page";
 import { SessionsPage } from "@/pages/sessions-page";
 import { LabBoardProvider } from "@/features/lab-board/lab-board-context";
+import { AnimationDemoPage } from "@/pages/animation-demo-page";
 
 export const router = createBrowserRouter([
   {
@@ -25,6 +26,10 @@ export const router = createBrowserRouter([
   {
     path: "/change-password",
     element: <ChangePasswordPage />,
+  },
+  {
+    path: "/demo/animations",
+    element: <AnimationDemoPage />,
   },
   {
     path: "/admin/dashboard/board",
