@@ -130,26 +130,40 @@ function StatusCard({
   return (
     <article
       className={cn(
-        "min-w-0 overflow-hidden rounded-[20px] border-2 shadow-soft",
+        "min-w-0 overflow-hidden rounded-[20px] border-2 shadow-soft transition-colors duration-700",
         fillViewport ? "flex h-full flex-col" : "",
         theme.cardBorder,
         theme.cardBg,
       )}
     >
       <header
-        className={cn("border-b px-4 text-center sm:px-5", theme.headerBorder, theme.headerBg)}
+        className={cn("border-b px-1 transition-colors duration-700", theme.headerBorder, theme.headerBg)}
         style={fillViewport ? { paddingTop: iconSizes.headerPad, paddingBottom: iconSizes.headerPad } : { paddingTop: 14, paddingBottom: 14 }}
       >
-        <p
-          className={cn("w-full truncate font-semibold tracking-[-0.01em]", theme.nameText)}
-          style={nameStyle}
-          title={row.name}
-        >
-          {row.name}
-        </p>
+        <div className="relative flex items-center justify-center px-2">
+          <span
+            className={cn("absolute left-2 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
+            style={{ fontSize: Math.max(12, (nameStyle.fontSize as number) * 0.78), opacity: row.checkInAt !== "未出勤" ? 0.85 : 0 }}
+          >
+            {row.checkInAt !== "未出勤" ? row.checkInAt : ""}
+          </span>
+          <p
+            className={cn("truncate text-center font-semibold tracking-[-0.01em] transition-colors duration-700", theme.nameText)}
+            style={nameStyle}
+            title={row.name}
+          >
+            {row.name}
+          </p>
+          <span
+            className={cn("absolute right-2 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
+            style={{ fontSize: Math.max(12, (nameStyle.fontSize as number) * 0.78), opacity: row.checkOutAt ? 0.85 : 0 }}
+          >
+            {row.checkOutAt ?? ""}
+          </span>
+        </div>
       </header>
 
-      <div className={cn("grid grid-cols-3 divide-x", theme.sectionsDivide, theme.sectionsBg, fillViewport ? "flex-1 min-h-0" : "")}>
+      <div className={cn("grid grid-cols-3 divide-x transition-colors duration-700", theme.sectionsDivide, theme.sectionsBg, fillViewport ? "flex-1 min-h-0" : "")} style={{ transitionDelay: "0ms" }}>
         {sections.map((section) => (
           <StatusSection
             key={section.key}
@@ -184,10 +198,10 @@ function computeIconSizes(rowCount: number, fillViewport: boolean): IconSizes {
   }
   const scale = Math.max(0.65, Math.min(1.8, 6 / rowCount));
   return {
-    circleSize: Math.round(64 * scale),
-    iconInCircle: Math.round(32 * scale),
-    iconBare: Math.round(44 * scale),
-    fontSize: Math.max(13, Math.round(18 * scale)),
+    circleSize: Math.round(80 * scale),
+    iconInCircle: Math.round(42 * scale),
+    iconBare: Math.round(58 * scale),
+    fontSize: Math.max(16, Math.round(24 * scale)),
     sectionPad: Math.max(4, Math.round(10 * scale)),
     headerPad: Math.max(6, Math.round(12 * scale)),
   };
@@ -195,12 +209,12 @@ function computeIconSizes(rowCount: number, fillViewport: boolean): IconSizes {
 
 function buildNameStyle(name: string, fillViewport: boolean, rowCount = 6): CSSProperties {
   const length = name.length;
-  const baseFontSize = Math.max(14, Math.min(26, 28 - Math.max(0, length - 10) * 0.7));
+  const baseFontSize = Math.max(20, Math.min(46, 48 - Math.max(0, length - 10) * 0.9));
   const scale = fillViewport ? Math.max(0.65, Math.min(1.8, 6 / rowCount)) : 1;
-  const fontSize = baseFontSize * (fillViewport ? scale * 0.9 : 1);
+  const fontSize = baseFontSize * (fillViewport ? scale : 1);
 
   return {
-    fontSize: `${Math.max(12, fontSize)}px`,
+    fontSize: `${Math.max(18, fontSize)}px`,
     lineHeight: 1.12,
   };
 }
@@ -253,7 +267,7 @@ function StatusSection({
         className={cn("absolute bottom-0 left-0 right-0", theme.fillBg)}
         style={{
           height: `${fillPct * 100}%`,
-          transition: noTransition ? "none" : "height 250ms ease-out",
+          transition: noTransition ? "none" : "height 600ms ease-out",
         }}
       />
 
@@ -315,63 +329,63 @@ const sectionThemes: Record<
   }
 > = {
   lab: {
-    activeBg: "bg-emerald-100",
-    cardBg: "bg-emerald-50",
-    cardBorder: "border-emerald-400",
-    fillBg: "bg-emerald-200",
-    headerBg: "bg-emerald-100",
-    headerBorder: "border-emerald-200",
-    iconActiveBg: "bg-emerald-500",
-    iconActiveBorder: "border-emerald-300",
+    activeBg: "bg-emerald-200",
+    cardBg: "bg-emerald-100",
+    cardBorder: "border-emerald-500",
+    fillBg: "bg-emerald-100",
+    headerBg: "bg-emerald-200",
+    headerBorder: "border-emerald-300",
+    iconActiveBg: "bg-emerald-600",
+    iconActiveBorder: "border-emerald-400",
     iconActiveText: "text-white",
-    iconInactiveBg: "bg-emerald-100",
-    iconInactiveBorder: "border-emerald-200",
+    iconInactiveBg: "bg-emerald-200",
+    iconInactiveBorder: "border-emerald-300",
     iconInactiveText: "text-black/30",
-    inactiveBg: "bg-emerald-50",
+    inactiveBg: "bg-emerald-100",
     nameText: "text-emerald-950",
-    sectionsBg: "bg-emerald-50",
-    sectionsDivide: "divide-emerald-200",
+    sectionsBg: "bg-emerald-100",
+    sectionsDivide: "divide-emerald-300",
     textActive: "text-emerald-950",
     textInactive: "text-black/30",
   },
   class: {
-    activeBg: "bg-sky-100",
-    cardBg: "bg-sky-50",
-    cardBorder: "border-sky-400",
-    fillBg: "bg-sky-200",
-    headerBg: "bg-sky-100",
-    headerBorder: "border-sky-200",
-    iconActiveBg: "bg-sky-500",
-    iconActiveBorder: "border-sky-300",
+    activeBg: "bg-blue-200",
+    cardBg: "bg-blue-100",
+    cardBorder: "border-blue-500",
+    fillBg: "bg-blue-100",
+    headerBg: "bg-blue-200",
+    headerBorder: "border-blue-300",
+    iconActiveBg: "bg-blue-600",
+    iconActiveBorder: "border-blue-400",
     iconActiveText: "text-white",
-    iconInactiveBg: "bg-sky-100",
-    iconInactiveBorder: "border-sky-200",
+    iconInactiveBg: "bg-blue-200",
+    iconInactiveBorder: "border-blue-300",
     iconInactiveText: "text-black/30",
-    inactiveBg: "bg-sky-50",
-    nameText: "text-sky-950",
-    sectionsBg: "bg-sky-50",
-    sectionsDivide: "divide-sky-200",
-    textActive: "text-sky-950",
+    inactiveBg: "bg-blue-100",
+    nameText: "text-blue-950",
+    sectionsBg: "bg-blue-100",
+    sectionsDivide: "divide-blue-300",
+    textActive: "text-blue-950",
     textInactive: "text-black/30",
   },
   home: {
-    activeBg: "bg-slate-200",
-    cardBg: "bg-slate-100",
-    cardBorder: "border-slate-400",
-    fillBg: "bg-slate-300",
-    headerBg: "bg-slate-200",
-    headerBorder: "border-slate-300",
-    iconActiveBg: "bg-slate-500",
+    activeBg: "bg-slate-600",
+    cardBg: "bg-slate-700",
+    cardBorder: "border-slate-500",
+    fillBg: "bg-slate-700",
+    headerBg: "bg-slate-800",
+    headerBorder: "border-slate-600",
+    iconActiveBg: "bg-slate-300",
     iconActiveBorder: "border-slate-400",
-    iconActiveText: "text-white",
-    iconInactiveBg: "bg-slate-200",
-    iconInactiveBorder: "border-slate-300",
-    iconInactiveText: "text-black/30",
-    inactiveBg: "bg-slate-100",
-    nameText: "text-slate-900",
-    sectionsBg: "bg-slate-100",
-    sectionsDivide: "divide-slate-300",
-    textActive: "text-slate-900",
-    textInactive: "text-black/30",
+    iconActiveText: "text-slate-900",
+    iconInactiveBg: "bg-slate-600",
+    iconInactiveBorder: "border-slate-500",
+    iconInactiveText: "text-slate-400",
+    inactiveBg: "bg-slate-700",
+    nameText: "text-white",
+    sectionsBg: "bg-slate-700",
+    sectionsDivide: "divide-slate-600",
+    textActive: "text-white",
+    textInactive: "text-slate-400",
   },
 };

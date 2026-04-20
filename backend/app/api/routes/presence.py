@@ -87,9 +87,9 @@ def serialize_presence_item(
     if presence.current_session_id is not None:
         open_session = stores.sessions.get_by_id(presence.current_session_id)
 
-    today_check_in_at = None
-    if open_session is not None and open_session.check_in_at.date() == datetime.now(timezone.utc).date():
-        today_check_in_at = open_session.check_in_at
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    first_session = stores.sessions.get_today_first_check_in(user.user_id, today_str)
+    today_check_in_at = first_session.check_in_at if first_session is not None else None
 
     return PresenceItem(
         user_id=user.user_id,

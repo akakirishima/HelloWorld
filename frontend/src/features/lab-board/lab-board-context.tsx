@@ -355,6 +355,12 @@ function buildLabBoardState(
       const presence = presenceByUser.get(item.userId);
       const statusLabel = normalizePresenceStatus(presence?.current_status);
 
+      const checkInAt = presence?.today_check_in_at ? formatTime(presence.today_check_in_at) : "未出勤";
+      const checkOutAt =
+        statusLabel === "Off Campus" && checkInAt !== "未出勤" && presence?.last_changed_at
+          ? formatTime(presence.last_changed_at)
+          : null;
+
       return {
         id: item.userId,
         name: item.displayName,
@@ -363,7 +369,8 @@ function buildLabBoardState(
         activeColumn: mapStatusToMatrixColumn(statusLabel),
         statusLabel,
         currentSessionId: presence?.current_session_id ?? null,
-        checkInAt: presence?.today_check_in_at ? formatTime(presence.today_check_in_at) : "未出勤",
+        checkInAt,
+        checkOutAt,
       };
     });
 
@@ -394,6 +401,10 @@ function buildMemberBoardState(
         statusLabel,
         currentSessionId: presence.current_session_id,
         checkInAt: presence.today_check_in_at ? formatTime(presence.today_check_in_at) : "未出勤",
+        checkOutAt:
+          statusLabel === "Off Campus" && presence.today_check_in_at && presence.last_changed_at
+            ? formatTime(presence.last_changed_at)
+            : null,
       },
     ],
     users: [],

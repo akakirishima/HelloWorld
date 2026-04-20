@@ -109,6 +109,39 @@ seed で以下を投入します。
 - `contact_time/` は NAS 側に生成される
 - `admin` でログインできる
 
+## タッチモニター運用（キオスクモード）
+
+ダッシュボードをタッチモニターでキオスク表示する場合は Chromium をキオスクモードで起動します。
+
+```bash
+chromium \
+  --kiosk \
+  --noerrdialogs \
+  --disable-infobars \
+  --disable-session-crashed-bubble \
+  --autoplay-policy=no-user-gesture-required \
+  --overscroll-history-navigation=0 \
+  http://localhost:5174/admin/dashboard/board
+```
+
+- `--kiosk`: フルスクリーン固定、アドレスバー・タブ非表示
+- `--noerrdialogs`: エラーダイアログを抑制
+- `--disable-infobars`: フルスクリーン終了バーを非表示
+- `--disable-session-crashed-bubble`: クラッシュ復元バブルを非表示
+- `--autoplay-policy=no-user-gesture-required`: 自動再生をジェスチャーなしで許可
+- `--overscroll-history-navigation=0`: スワイプによる前後ページ移動を無効化
+
+### タッチキャリブレーション
+
+タッチ位置がずれている場合は `/demo/calibration` でキャリブレーションできます。  
+四隅＋中央の × を順番にタッチすると変換行列を自動計算し、`/etc/X11/xorg.conf.d/99-calibration.conf` に保存します。
+
+初回のみ書き込み権限を付与してください。
+
+```bash
+sudo chown $USER /etc/X11/xorg.conf.d/99-calibration.conf
+```
+
 ## 補足
 
 - `docker-compose.yml` `docker-compose.rpi.yml` `docker-compose.qnap.yml` はいずれも NAS 保存前提です。

@@ -105,6 +105,20 @@ class SessionStore:
         row = self._sqlite.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
         return _row_to_record(row) if row is not None else None
 
+    def get_today_first_check_in(self, user_id: str, today_date: str) -> SessionRecord | None:
+        if self._sqlite is None:
+            return None
+        row = self._sqlite.execute(
+            """
+            SELECT * FROM sessions
+            WHERE user_id = ? AND date(check_in_at) = ?
+            ORDER BY check_in_at ASC
+            LIMIT 1
+            """,
+            (user_id, today_date),
+        ).fetchone()
+        return _row_to_record(row) if row is not None else None
+
     def list_by_user(self, user_id: str) -> list[SessionRecord]:
         if self._sqlite is None:
             return []

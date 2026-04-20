@@ -37,7 +37,10 @@ export function DashboardBoardPage() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#eef2ec] p-2 sm:p-3">
+    <div
+      className="h-screen w-screen overflow-hidden bg-[#eef2ec] p-2 sm:p-3"
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <div className="relative h-full w-full">
         {statusError ? (
           <div className="absolute left-4 right-4 top-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 sm:left-6 sm:right-6 lg:left-8 lg:right-8">

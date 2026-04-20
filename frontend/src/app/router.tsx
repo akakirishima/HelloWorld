@@ -17,6 +17,7 @@ import { NotesPage } from "@/pages/notes-page";
 import { SessionsPage } from "@/pages/sessions-page";
 import { LabBoardProvider } from "@/features/lab-board/lab-board-context";
 import { AnimationDemoPage } from "@/pages/animation-demo-page";
+import { CalibrationPage } from "@/pages/calibration-page";
 import { WaterDemoPage } from "@/pages/water-demo-page";
 
 export const router = createBrowserRouter([
@@ -35,6 +36,10 @@ export const router = createBrowserRouter([
   {
     path: "/demo/water",
     element: <WaterDemoPage />,
+  },
+  {
+    path: "/demo/calibration",
+    element: <CalibrationPage />,
   },
   {
     path: "/admin/dashboard/board",

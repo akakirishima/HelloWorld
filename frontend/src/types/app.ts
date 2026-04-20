@@ -69,6 +69,7 @@ export type DashboardMatrixRow = {
   statusLabel: PresenceStatus;
   currentSessionId: number | null;
   checkInAt: string;
+  checkOutAt: string | null;
 };
 
 export type DashboardBoardSummaryItem = {
