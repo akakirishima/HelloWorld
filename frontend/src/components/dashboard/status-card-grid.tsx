@@ -11,6 +11,7 @@ type StatusCardGridProps = {
   rows: DashboardMatrixRow[];
   className?: string;
   fillViewport?: boolean;
+  disabledSections?: SectionKey[];
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
 };
 
@@ -32,6 +33,7 @@ export function StatusCardGrid({
   rows,
   className,
   fillViewport = false,
+  disabledSections = [],
   onSectionSelect,
 }: StatusCardGridProps) {
   const rowCount = Math.max(1, Math.ceil(rows.length / 2));
@@ -40,7 +42,7 @@ export function StatusCardGrid({
     <div
       className={cn(
         "grid grid-cols-2",
-        fillViewport ? "h-full min-h-0 w-full gap-3" : "gap-4",
+        fillViewport ? "h-full min-h-0 w-full gap-1.5" : "gap-4",
         className,
       )}
       data-testid="status-card-grid"
@@ -53,7 +55,7 @@ export function StatusCardGrid({
       }
     >
       {rows.map((row) => (
-        <StatusCard key={row.id} fillViewport={fillViewport} rowCount={rowCount} onSectionSelect={onSectionSelect} row={row} />
+        <StatusCard key={row.id} fillViewport={fillViewport} rowCount={rowCount} disabledSections={disabledSections} onSectionSelect={onSectionSelect} row={row} />
       ))}
     </div>
   );
@@ -65,11 +67,13 @@ function StatusCard({
   row,
   fillViewport,
   rowCount,
+  disabledSections,
   onSectionSelect,
 }: {
   row: DashboardMatrixRow;
   fillViewport: boolean;
   rowCount: number;
+  disabledSections: SectionKey[];
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
 }) {
   const serverActive = mapRowToSection(row);
@@ -99,6 +103,7 @@ function StatusCard({
   };
 
   const handlePressStart = (section: SectionKey) => {
+    if (disabledSections.includes(section)) return;
     if (section === activeSection) return;
     setPressing(section);
     setProgress(0);
@@ -125,7 +130,7 @@ function StatusCard({
   return (
     <article
       className={cn(
-        "min-w-0 overflow-hidden rounded-[28px] border-2 shadow-soft",
+        "min-w-0 overflow-hidden rounded-[20px] border-2 shadow-soft",
         fillViewport ? "flex h-full flex-col" : "",
         theme.cardBorder,
         theme.cardBg,
@@ -150,6 +155,7 @@ function StatusCard({
             key={section.key}
             fillPct={getFillPct(section.key)}
             noTransition={pressing !== null && (section.key === pressing || section.key === activeSection)}
+            disabled={disabledSections.includes(section.key)}
             fillViewport={fillViewport}
             iconSizes={iconSizes}
             label={section.label}
@@ -176,25 +182,25 @@ function computeIconSizes(rowCount: number, fillViewport: boolean): IconSizes {
   if (!fillViewport) {
     return { circleSize: 32, iconInCircle: 16, iconBare: 20, fontSize: 11, sectionPad: 10, headerPad: 14 };
   }
-  const scale = Math.max(0.55, Math.min(1.5, 6 / rowCount));
+  const scale = Math.max(0.65, Math.min(1.8, 6 / rowCount));
   return {
-    circleSize: Math.round(56 * scale),
-    iconInCircle: Math.round(28 * scale),
-    iconBare: Math.round(36 * scale),
-    fontSize: Math.max(11, Math.round(15 * scale)),
-    sectionPad: Math.max(4, Math.round(8 * scale)),
-    headerPad: Math.max(6, Math.round(10 * scale)),
+    circleSize: Math.round(64 * scale),
+    iconInCircle: Math.round(32 * scale),
+    iconBare: Math.round(44 * scale),
+    fontSize: Math.max(13, Math.round(18 * scale)),
+    sectionPad: Math.max(4, Math.round(10 * scale)),
+    headerPad: Math.max(6, Math.round(12 * scale)),
   };
 }
 
 function buildNameStyle(name: string, fillViewport: boolean, rowCount = 6): CSSProperties {
   const length = name.length;
-  const baseFontSize = Math.max(12, Math.min(20, 22 - Math.max(0, length - 10) * 0.6));
-  const scale = fillViewport ? Math.max(0.55, Math.min(1.5, 6 / rowCount)) : 1;
+  const baseFontSize = Math.max(14, Math.min(26, 28 - Math.max(0, length - 10) * 0.7));
+  const scale = fillViewport ? Math.max(0.65, Math.min(1.8, 6 / rowCount)) : 1;
   const fontSize = baseFontSize * (fillViewport ? scale * 0.9 : 1);
 
   return {
-    fontSize: `${Math.max(10, fontSize)}px`,
+    fontSize: `${Math.max(12, fontSize)}px`,
     lineHeight: 1.12,
   };
 }
@@ -202,6 +208,7 @@ function buildNameStyle(name: string, fillViewport: boolean, rowCount = 6): CSSP
 function StatusSection({
   fillPct,
   noTransition,
+  disabled,
   label,
   sectionKey,
   fillViewport,
@@ -211,6 +218,7 @@ function StatusSection({
 }: {
   fillPct: number;
   noTransition: boolean;
+  disabled: boolean;
   label: string;
   sectionKey: SectionKey;
   fillViewport: boolean;
@@ -228,6 +236,7 @@ function StatusSection({
       className={cn(
         "relative flex h-full flex-col items-center justify-center gap-1.5 overflow-hidden px-2 text-center select-none",
         "focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-inset",
+        disabled && "cursor-not-allowed opacity-40",
       )}
       style={
         fillViewport

@@ -26,10 +26,6 @@ export function DashboardBoardPage() {
     return <Navigate replace to="/change-password" />;
   }
 
-  if (user.role !== "admin") {
-    return <Navigate replace to="/notes" />;
-  }
-
   if (!isLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,_#f4f8fb_0%,_#eef3f2_100%)]">
@@ -41,7 +37,7 @@ export function DashboardBoardPage() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#eef2ec] p-4 sm:p-6 lg:p-8">
+    <div className="h-screen w-screen overflow-hidden bg-[#eef2ec] p-2 sm:p-3">
       <div className="relative h-full w-full">
         {statusError ? (
           <div className="absolute left-4 right-4 top-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 sm:left-6 sm:right-6 lg:left-8 lg:right-8">
@@ -52,6 +48,7 @@ export function DashboardBoardPage() {
         <StatusCardGrid
           className="h-full w-full"
           fillViewport
+          disabledSections={user.role === "member" ? ["lab"] : []}
           onSectionSelect={(rowId, section) => {
             if (section === "lab") {
               return handleCellSelect(rowId, "room");

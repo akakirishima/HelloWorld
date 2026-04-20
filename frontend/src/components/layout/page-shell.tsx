@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const primaryNav = [
   { label: "日誌", to: "/notes" },
   { label: "勤怠履歴", to: "/sessions" },
+  { label: "ボード", to: "/admin/dashboard/board" },
 ];
 
 const adminLinks = [

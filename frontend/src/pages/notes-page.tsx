@@ -48,6 +48,11 @@ const EMPTY_FORM: NoteFormState = {
   futureTasks: "",
 };
 
+function currentYearMonth() {
+  const now = new Date(Date.now() + 9 * 60 * 60 * 1000); // JST
+  return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
+}
+
 export function NotesPage() {
   const [notes, setNotes] = useState<NoteRecord[]>([]);
   const [sessionDates, setSessionDates] = useState<Set<string>>(new Set());
@@ -58,6 +63,8 @@ export function NotesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [exportYear, setExportYear] = useState(() => currentYearMonth().year);
+  const [exportMonth, setExportMonth] = useState(() => currentYearMonth().month);
 
   const fetchNotes = useCallback(
     async (selectedId?: string | null) => {
@@ -130,12 +137,11 @@ export function NotesPage() {
     setSaveError(null);
     setSaveMessage(null);
     try {
-      const params = new URLSearchParams();
-      const { startDate, endDate } = recentDateWindow();
-      params.set("date_from", startDate);
-      params.set("date_to", endDate);
-      const suffix = params.toString();
-      const response = await fetch(`/api/notes/export${suffix ? `?${suffix}` : ""}`, {
+      const params = new URLSearchParams({
+        year: String(exportYear),
+        month: String(exportMonth),
+      });
+      const response = await fetch(`/api/notes/export?${params.toString()}`, {
         credentials: "include",
       });
       if (!response.ok) {
@@ -143,7 +149,9 @@ export function NotesPage() {
         throw new Error(message);
       }
       const blob = await response.blob();
-      const filename = filenameFromContentDisposition(response.headers.get("content-disposition")) ?? "notes-export.xlsx";
+      const filename =
+        filenameFromContentDisposition(response.headers.get("content-disposition")) ??
+        `勤怠表_${exportYear}年${String(exportMonth).padStart(2, "0")}月.xlsx`;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -152,9 +160,9 @@ export function NotesPage() {
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-      setSaveMessage("日誌をExcelに出力しました。");
+      setSaveMessage(`${exportYear}年${exportMonth}月の勤怠表を出力しました。`);
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "日誌のExcel出力に失敗しました。");
+      setSaveError(error instanceof Error ? error.message : "Excel出力に失敗しました。");
     } finally {
       setIsExporting(false);
     }
@@ -225,9 +233,30 @@ export function NotesPage() {
         title="日誌"
         description="過去2週間分の日誌だけを表示し、その範囲だけ編集できます。"
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 年月セレクタ */}
+            <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1.5">
+              <select
+                className="bg-transparent text-sm font-medium text-slate-700 outline-none"
+                value={exportYear}
+                onChange={(e) => setExportYear(Number(e.target.value))}
+              >
+                {Array.from({ length: 5 }, (_, i) => currentYearMonth().year - 2 + i).map((y) => (
+                  <option key={y} value={y}>{y}年</option>
+                ))}
+              </select>
+              <select
+                className="bg-transparent text-sm font-medium text-slate-700 outline-none"
+                value={exportMonth}
+                onChange={(e) => setExportMonth(Number(e.target.value))}
+              >
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <option key={m} value={m}>{m}月</option>
+                ))}
+              </select>
+            </div>
             <ToolbarButton
-              label={isExporting ? "出力中..." : "Excel出力"}
+              label={isExporting ? "出力中..." : "勤怠表 Excel"}
               onClick={() => void exportNotes()}
               disabled={isExporting}
             />

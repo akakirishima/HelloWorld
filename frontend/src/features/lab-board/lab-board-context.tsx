@@ -106,16 +106,20 @@ export function LabBoardProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   const refreshFromApi = useCallback(async () => {
-    const [lab, rooms, users, presence] = await Promise.all([
-      apiFetch<LabResponse>("/settings/lab"),
-      apiFetch<{ items: RoomResponse[] }>("/rooms"),
-      apiFetch<{ items: UserResponse[] }>("/users"),
-      apiFetch<PresenceListResponse>("/presence"),
-    ]);
-
-    setState(buildLabBoardState(lab, rooms.items, users.items, presence.items));
+    if (user?.role === "admin") {
+      const [lab, rooms, users, presence] = await Promise.all([
+        apiFetch<LabResponse>("/settings/lab"),
+        apiFetch<{ items: RoomResponse[] }>("/rooms"),
+        apiFetch<{ items: UserResponse[] }>("/users"),
+        apiFetch<PresenceListResponse>("/presence"),
+      ]);
+      setState(buildLabBoardState(lab, rooms.items, users.items, presence.items));
+    } else if (user) {
+      const me = await apiFetch<PresenceItemResponse>("/presence/me");
+      setState(buildMemberBoardState(user, me));
+    }
     setIsLoaded(true);
-  }, []);
+  }, [user]);
 
   const patchUser = useCallback(
     async (userId: string, payload: Record<string, unknown>) => {
@@ -129,20 +133,16 @@ export function LabBoardProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (authLoading) {
-      return;
-    }
-
-    if (user?.role !== "admin") {
+    if (authLoading || !user) {
       return;
     }
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refreshFromApi();
-  }, [authLoading, refreshFromApi, user?.role]);
+  }, [authLoading, refreshFromApi, user]);
 
-  const effectiveState = user?.role === "admin" ? state : initialLabBoardState;
-  const effectiveIsLoaded = user?.role === "admin" ? isLoaded : true;
+  const effectiveState = state;
+  const effectiveIsLoaded = isLoaded;
 
   const value = useMemo<LabBoardContextValue>(
     () => ({
@@ -374,6 +374,29 @@ function buildLabBoardState(
     },
     rows,
     users: mappedUsers,
+  };
+}
+
+function buildMemberBoardState(
+  user: import("@/types/app").AuthUser,
+  presence: PresenceItemResponse,
+): LabBoardState {
+  const statusLabel = normalizePresenceStatus(presence.current_status);
+  return {
+    lab: { labName: "", rooms: [] },
+    rows: [
+      {
+        id: user.userId,
+        name: user.displayName,
+        academicGrade: normalizeAcademicYear(user.academicYear),
+        roomId: presence.room_id === null ? null : String(presence.room_id),
+        activeColumn: mapStatusToMatrixColumn(statusLabel),
+        statusLabel,
+        currentSessionId: presence.current_session_id,
+        checkInAt: presence.today_check_in_at ? formatTime(presence.today_check_in_at) : "未出勤",
+      },
+    ],
+    users: [],
   };
 }
 

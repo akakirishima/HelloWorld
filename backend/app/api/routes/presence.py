@@ -42,6 +42,13 @@ def my_presence(user: ActiveUser, stores: AppStores) -> PresenceMeResponse:
 
 @router.post("/status", response_model=PresenceItem)
 def update_status(payload: ChangeStatusRequest, actor: ActiveUser, stores: AppStores) -> PresenceItem:
+    from fastapi import HTTPException, status as http_status
+    from app.core.constants import UserRole
+    if actor.role == UserRole.MEMBER.value and payload.to_status == "Room":
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="メンバーは Lab ステータスに直接変更できません。",
+        )
     target = resolve_target_user(stores, actor, payload.target_user_id)
     presence = change_status(stores, actor=actor, target=target, to_status=payload.to_status)
     rooms = {r.id: r for r in stores.rooms.list_rooms()}

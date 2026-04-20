@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from datetime import date
+import calendar
+from datetime import date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
@@ -16,8 +18,10 @@ from app.schemas.notes import (
     NotesListResponse,
     UpdateNoteRequest,
 )
-from app.services.note_export_service import create_notes_workbook
+from app.services.note_export_service import create_timesheet_workbook, timesheet_filename
 from app.store.note_store import NoteStore
+
+_JST = ZoneInfo("Asia/Tokyo")
 
 router = APIRouter(prefix="/notes")
 
@@ -44,18 +48,39 @@ def list_notes(
 def export_notes(
     stores: AppStores,
     user: ActiveUser,
-    q: str | None = Query(default=None),
-    date_from: date | None = Query(default=None),
-    date_to: date | None = Query(default=None),
+    year: int | None = Query(default=None),
+    month: int | None = Query(default=None),
 ) -> Response:
+    now_jst = datetime.now(_JST)
+    y = year  if year  is not None else now_jst.year
+    m = month if month is not None else now_jst.month
+
+    days = calendar.monthrange(y, m)[1]
+    date_from = date(y, m, 1)
+    date_to   = date(y, m, days)
+
     store = _notes_store(stores, user)
-    notes = store.list_notes(q=q, date_from=date_from, date_to=date_to)
-    content = create_notes_workbook(notes)
-    filename = "notes-export.xlsx"
+    notes = store.list_notes(date_from=date_from, date_to=date_to)
+
+    all_sessions = stores.sessions.list_by_user(user.user_id)
+    month_sessions = [
+        s for s in all_sessions
+        if s.check_in_at.astimezone(_JST).year  == y
+        and s.check_in_at.astimezone(_JST).month == m
+    ]
+
+    content = create_timesheet_workbook(
+        year=y,
+        month=m,
+        display_name=user.display_name,
+        notes=notes,
+        sessions=month_sessions,
+    )
+    fname = timesheet_filename(y, m)
     return Response(
         content=content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{fname}"},
     )
 
 

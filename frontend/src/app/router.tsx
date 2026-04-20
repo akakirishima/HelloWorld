@@ -17,6 +17,7 @@ import { NotesPage } from "@/pages/notes-page";
 import { SessionsPage } from "@/pages/sessions-page";
 import { LabBoardProvider } from "@/features/lab-board/lab-board-context";
 import { AnimationDemoPage } from "@/pages/animation-demo-page";
+import { WaterDemoPage } from "@/pages/water-demo-page";
 
 export const router = createBrowserRouter([
   {
@@ -30,6 +31,10 @@ export const router = createBrowserRouter([
   {
     path: "/demo/animations",
     element: <AnimationDemoPage />,
+  },
+  {
+    path: "/demo/water",
+    element: <WaterDemoPage />,
   },
   {
     path: "/admin/dashboard/board",
