@@ -143,7 +143,7 @@ chromium \
   --disable-session-crashed-bubble \
   --autoplay-policy=no-user-gesture-required \
   --overscroll-history-navigation=0 \
-  http://localhost:5173/admin/dashboard/board
+  http://localhost:5173/board
 ```
 
 ### タッチ位置がずれている場合

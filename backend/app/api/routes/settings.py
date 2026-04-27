@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import AdminUser, AppStores
+from app.api.deps import ActiveUser, AdminUser, AppStores
 from app.models.lab import LabRecord
 from app.models.room import RoomRecord
 from app.schemas.settings import (
@@ -21,7 +21,7 @@ router = APIRouter()
 
 
 @router.get("/settings/lab", response_model=LabResponse)
-def get_lab(_: AdminUser, stores: AppStores) -> LabResponse:
+def get_lab(_: ActiveUser, stores: AppStores) -> LabResponse:
     lab = _require_lab(stores)
     return LabResponse(id=lab.id, name=lab.name)
 
@@ -44,7 +44,7 @@ def update_lab(payload: UpdateLabRequest, admin: AdminUser, stores: AppStores) -
 
 
 @router.get("/rooms", response_model=RoomListResponse)
-def list_rooms(_: AdminUser, stores: AppStores) -> RoomListResponse:
+def list_rooms(_: ActiveUser, stores: AppStores) -> RoomListResponse:
     rooms = sorted(stores.rooms.list_rooms(), key=lambda r: (r.display_order, r.id))
     return RoomListResponse(items=[serialize_room(r) for r in rooms])
 

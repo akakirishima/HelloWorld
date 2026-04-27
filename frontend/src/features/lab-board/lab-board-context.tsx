@@ -18,6 +18,7 @@ import {
   isAcademicGrade,
   mapMatrixColumnToStatus,
   mapStatusToMatrixColumn,
+  sortDashboardRows,
 } from "@/mocks/app-data";
 import type {
   AcademicGrade,
@@ -115,8 +116,12 @@ export function LabBoardProvider({ children }: { children: ReactNode }) {
       ]);
       setState(buildLabBoardState(lab, rooms.items, users.items, presence.items));
     } else if (user) {
-      const me = await apiFetch<PresenceItemResponse>("/presence/me");
-      setState(buildMemberBoardState(user, me));
+      const [lab, rooms, presence] = await Promise.all([
+        apiFetch<LabResponse>("/settings/lab"),
+        apiFetch<{ items: RoomResponse[] }>("/rooms"),
+        apiFetch<PresenceListResponse>("/presence"),
+      ]);
+      setState(buildBoardStateFromPresence(lab, rooms.items, presence.items));
     }
     setIsLoaded(true);
   }, [user]);
@@ -381,6 +386,45 @@ function buildLabBoardState(
     },
     rows,
     users: mappedUsers,
+  };
+}
+
+function buildBoardStateFromPresence(
+  lab: LabResponse,
+  rooms: RoomResponse[],
+  presenceItems: PresenceItemResponse[],
+): LabBoardState {
+  const mappedRooms = rooms.map((room) => ({
+    id: String(room.id),
+    name: room.name,
+    displayOrder: room.display_order,
+    isActive: room.is_active,
+  }));
+
+  const rows: DashboardMatrixRow[] = presenceItems.map((item) => {
+    const statusLabel = normalizePresenceStatus(item.current_status);
+    const checkInAt = item.today_check_in_at ? formatTime(item.today_check_in_at) : "未出勤";
+    const checkOutAt =
+      statusLabel === "Off Campus" && checkInAt !== "未出勤" && item.last_changed_at
+        ? formatTime(item.last_changed_at)
+        : null;
+    return {
+      id: item.user_id,
+      name: item.display_name,
+      academicGrade: normalizeAcademicYear(item.academic_year),
+      roomId: item.room_id === null ? null : String(item.room_id),
+      activeColumn: mapStatusToMatrixColumn(statusLabel),
+      statusLabel,
+      currentSessionId: item.current_session_id,
+      checkInAt,
+      checkOutAt,
+    };
+  });
+
+  return {
+    lab: { labName: lab.name, rooms: mappedRooms },
+    rows: sortDashboardRows(rows),
+    users: [],
   };
 }
 

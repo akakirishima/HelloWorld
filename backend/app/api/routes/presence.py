@@ -20,7 +20,7 @@ router = APIRouter(prefix="/presence")
 
 
 @router.get("", response_model=PresenceListResponse)
-def list_presence(_: AdminUser, stores: AppStores) -> PresenceListResponse:
+def list_presence(_: ActiveUser, stores: AppStores) -> PresenceListResponse:
     users = sorted(
         [u for u in stores.users.list_all() if u.is_active],
         key=lambda u: u.display_name,
@@ -32,12 +32,10 @@ def list_presence(_: AdminUser, stores: AppStores) -> PresenceListResponse:
 
 
 @router.get("/me", response_model=PresenceMeResponse)
-def my_presence(user: ActiveUser, stores: AppStores) -> PresenceMeResponse:
+def my_presence(user: ActiveUser, stores: AppStores) -> PresenceItem:
     presences = {p.user_id: p for p in stores.presence.list_all()}
     rooms = {r.id: r for r in stores.rooms.list_rooms()}
-    return PresenceMeResponse.model_validate(
-        serialize_presence_item(stores, user, presences=presences, rooms=rooms)
-    )
+    return serialize_presence_item(stores, user, presences=presences, rooms=rooms)
 
 
 @router.post("/status", response_model=PresenceItem)

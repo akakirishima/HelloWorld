@@ -42,7 +42,11 @@ export const router = createBrowserRouter([
     element: <CalibrationPage />,
   },
   {
+    path: "/board",
+  },
+  {
     path: "/admin/dashboard/board",
+    element: <Navigate replace to="/board" />,
     element: (
       <LabBoardProvider>
         <DashboardBoardPage />
