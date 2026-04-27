@@ -2,8 +2,9 @@ import type { CSSProperties } from "react";
 
 import type { DashboardMatrixRow } from "@/types/app";
 
-import { FlaskConical, GraduationCap, Home } from "lucide-react";
+import { Crosshair, FlaskConical, GraduationCap, Home } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { cn } from "@/lib/utils";
 
@@ -54,8 +55,8 @@ export function StatusCardGrid({
           : undefined
       }
     >
-      {rows.map((row) => (
-        <StatusCard key={row.id} fillViewport={fillViewport} rowCount={rowCount} disabledSections={disabledSections} onSectionSelect={onSectionSelect} row={row} />
+      {rows.map((row, index) => (
+        <StatusCard key={row.id} fillViewport={fillViewport} rowCount={rowCount} disabledSections={disabledSections} onSectionSelect={onSectionSelect} row={row} isLast={index === rows.length - 1} />
       ))}
     </div>
   );
@@ -69,13 +70,16 @@ function StatusCard({
   rowCount,
   disabledSections,
   onSectionSelect,
+  isLast,
 }: {
   row: DashboardMatrixRow;
   fillViewport: boolean;
   rowCount: number;
   disabledSections: SectionKey[];
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
+  isLast: boolean;
 }) {
+  const navigate = useNavigate();
   const serverActive = mapRowToSection(row);
   const [localActive, setLocalActive] = useState<SectionKey | null>(null);
   const [pressing, setPressing] = useState<SectionKey | null>(null);
@@ -130,7 +134,7 @@ function StatusCard({
   return (
     <article
       className={cn(
-        "min-w-0 overflow-hidden rounded-[20px] border-2 shadow-soft transition-colors duration-700",
+        "relative min-w-0 overflow-hidden rounded-[20px] border-2 shadow-soft transition-colors duration-700",
         fillViewport ? "flex h-full flex-col" : "",
         theme.cardBorder,
         theme.cardBg,
@@ -143,7 +147,7 @@ function StatusCard({
         <div className="relative flex items-center justify-center px-2">
           <span
             className={cn("absolute left-2 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
-            style={{ fontSize: Math.max(12, (nameStyle.fontSize as number) * 0.78), opacity: row.checkInAt !== "未出勤" ? 0.85 : 0 }}
+            style={{ fontSize: Math.max(16, (nameStyle.fontSize as number) * 1.2), opacity: row.checkInAt !== "未出勤" ? 0.85 : 0 }}
           >
             {row.checkInAt !== "未出勤" ? row.checkInAt : ""}
           </span>
@@ -156,7 +160,7 @@ function StatusCard({
           </p>
           <span
             className={cn("absolute right-2 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
-            style={{ fontSize: Math.max(12, (nameStyle.fontSize as number) * 0.78), opacity: row.checkOutAt ? 0.85 : 0 }}
+            style={{ fontSize: Math.max(16, (nameStyle.fontSize as number) * 1.2), opacity: row.checkOutAt ? 0.85 : 0 }}
           >
             {row.checkOutAt ?? ""}
           </span>
@@ -179,6 +183,21 @@ function StatusCard({
           />
         ))}
       </div>
+
+      {isLast && (
+        <button
+          type="button"
+          className="absolute bottom-2 right-2 z-20 rounded-full p-2 opacity-20 transition-opacity active:opacity-80"
+          onClick={() => navigate("/demo/calibration")}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <Crosshair
+            className={cn("transition-colors duration-700", theme.nameText)}
+            size={18}
+            strokeWidth={1.5}
+          />
+        </button>
+      )}
     </article>
   );
 }

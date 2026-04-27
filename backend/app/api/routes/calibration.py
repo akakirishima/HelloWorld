@@ -9,7 +9,6 @@ from pydantic import BaseModel
 router = APIRouter()
 
 XORG_CONF_PATH = Path("/etc/X11/xorg.conf.d/99-calibration.conf")
-DEVICE_ID = 11
 DEVICE_NAME = "Silicon Integrated System Co. SiS HID Touch Controller"
 
 
@@ -27,11 +26,11 @@ def apply_calibration(payload: MatrixPayload) -> dict[str, str]:
 
     try:
         subprocess.run(
-            ["xinput", "set-prop", str(DEVICE_ID), "Coordinate Transformation Matrix"] + [str(v) for v in mat],
+            ["xinput", "set-prop", DEVICE_NAME, "Coordinate Transformation Matrix"] + [str(v) for v in mat],
             check=True,
             capture_output=True,
             text=True,
-            env={"DISPLAY": ":0"},
+            env={"DISPLAY": ":0", "XAUTHORITY": "/home/ishikiri_02/.Xauthority"},
         )
     except subprocess.CalledProcessError as e:
         raise HTTPException(status_code=500, detail=f"xinput failed: {e.stderr}") from e

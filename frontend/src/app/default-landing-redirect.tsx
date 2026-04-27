@@ -6,7 +6,7 @@ export function DefaultLandingRedirect() {
   const { user } = useAuth();
 
   if (user?.role === "member") {
-    return <Navigate replace to="/notes" />;
+    return <Navigate replace to="/admin/dashboard/board" />;
   }
 
   return <Navigate replace to="/admin/dashboard" />;
