@@ -400,9 +400,14 @@ export function NotesPage() {
                 />
               </label>
               <label className="flex flex-col gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  タイトル
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                    タイトル
+                  </span>
+                  {form.title.length > 100 && (
+                    <span className="text-xs font-medium text-rose-600">{form.title.length}/100</span>
+                  )}
+                </div>
                 <input
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none focus:border-slate-400"
                   onChange={(event) => patch({ title: event.target.value })}
@@ -413,9 +418,14 @@ export function NotesPage() {
             </div>
 
             <label className="flex flex-col gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                今日やったこと
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  今日やったこと
+                </span>
+                {form.didToday.length > 500 && (
+                  <span className="text-xs font-medium text-rose-600">{form.didToday.length}/500</span>
+                )}
+              </div>
               <textarea
                 className="min-h-36 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-700 outline-none focus:border-slate-400"
                 onChange={(event) => patch({ didToday: event.target.value })}
@@ -425,9 +435,14 @@ export function NotesPage() {
             </label>
 
             <label className="flex flex-col gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                今後の課題等
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  今後の課題等
+                </span>
+                {form.futureTasks.length > 500 && (
+                  <span className="text-xs font-medium text-rose-600">{form.futureTasks.length}/500</span>
+                )}
+              </div>
               <textarea
                 className="min-h-28 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-700 outline-none focus:border-slate-400"
                 onChange={(event) => patch({ futureTasks: event.target.value })}
@@ -439,7 +454,7 @@ export function NotesPage() {
             <div className="flex flex-wrap gap-3">
               <ToolbarButton
                 label={isSaving ? "保存中..." : "保存"}
-                disabled={!canEditCurrentForm || isSaving}
+                disabled={!canEditCurrentForm || isSaving || form.title.length > 100 || form.didToday.length > 500 || form.futureTasks.length > 500}
                 onClick={() => void saveNote()}
                 tone="primary"
               />
