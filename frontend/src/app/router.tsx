@@ -43,15 +43,15 @@ export const router = createBrowserRouter([
   },
   {
     path: "/board",
-  },
-  {
-    path: "/admin/dashboard/board",
-    element: <Navigate replace to="/board" />,
     element: (
       <LabBoardProvider>
         <DashboardBoardPage />
       </LabBoardProvider>
     ),
+  },
+  {
+    path: "/admin/dashboard/board",
+    element: <Navigate replace to="/board" />,
   },
   {
     path: "/",

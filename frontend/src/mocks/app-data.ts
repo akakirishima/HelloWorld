@@ -372,6 +372,7 @@ export const initialDashboardMatrixRows: DashboardMatrixRow[] = presenceMembers.
   activeColumn: mapStatusToMatrixColumn(member.currentStatus),
   statusLabel: member.currentStatus,
   currentSessionId: null,
+  checkOutAt: null,
   checkInAt: member.todayCheckInAt ?? "未出勤",
 }));
 

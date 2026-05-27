@@ -67,7 +67,7 @@ export type DashboardMatrixRow = {
   roomId?: string | null;
   activeColumn: DashboardMatrixColumn;
   statusLabel: PresenceStatus;
-  currentSessionId: number | null;
+  currentSessionId: string | null;
   checkInAt: string;
   checkOutAt: string | null;
 };

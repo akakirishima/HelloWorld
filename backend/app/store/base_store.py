@@ -1,12 +1,17 @@
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows fallback
+    fcntl = None
+    import msvcrt
 
 
 class BaseStore:
@@ -37,8 +42,14 @@ class BaseStore:
     def _lock(self, lock_path: Path) -> Generator[None, None, None]:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         with open(lock_path, "w") as lf:
-            fcntl.flock(lf, fcntl.LOCK_EX)
+            if fcntl is None:
+                msvcrt.locking(lf.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                fcntl.flock(lf, fcntl.LOCK_EX)
             try:
                 yield
             finally:
-                fcntl.flock(lf, fcntl.LOCK_UN)
+                if fcntl is None:
+                    msvcrt.locking(lf.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(lf, fcntl.LOCK_UN)

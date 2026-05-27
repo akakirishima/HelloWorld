@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter
 
@@ -17,6 +18,7 @@ from app.services.attendance_service import (
 )
 
 router = APIRouter(prefix="/presence")
+_JST = ZoneInfo("Asia/Tokyo")
 
 
 @router.get("", response_model=PresenceListResponse)
@@ -79,15 +81,27 @@ def serialize_presence_item(
             current_session_id=None,
             last_changed_at=None,
             today_check_in_at=None,
+            today_check_out_at=None,
         )
 
     open_session: SessionRecord | None = None
     if presence.current_session_id is not None:
         open_session = stores.sessions.get_by_id(presence.current_session_id)
 
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    first_session = stores.sessions.get_today_first_check_in(user.user_id, today_str)
+    today = datetime.now(_JST).date()
+    today_sessions = [
+        session
+        for session in stores.sessions.list_by_user(user.user_id)
+        if normalize_datetime(session.check_in_at).astimezone(_JST).date() == today
+    ]
+    first_session = min(today_sessions, key=lambda session: normalize_datetime(session.check_in_at), default=None)
+    latest_closed_session = max(
+        (session for session in today_sessions if session.check_out_at is not None),
+        key=lambda session: normalize_datetime(session.check_out_at),
+        default=None,
+    )
     today_check_in_at = first_session.check_in_at if first_session is not None else None
+    today_check_out_at = latest_closed_session.check_out_at if latest_closed_session is not None else None
 
     return PresenceItem(
         user_id=user.user_id,
@@ -99,6 +113,7 @@ def serialize_presence_item(
         current_session_id=presence.current_session_id,
         last_changed_at=normalize_optional_datetime(presence.last_changed_at),
         today_check_in_at=normalize_optional_datetime(today_check_in_at),
+        today_check_out_at=normalize_optional_datetime(today_check_out_at),
     )
 
 
