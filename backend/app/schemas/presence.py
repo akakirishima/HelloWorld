@@ -15,6 +15,7 @@ class PresenceItem(BaseModel):
     current_session_id: str | None
     last_changed_at: datetime | None
     today_check_in_at: datetime | None
+    today_check_out_at: datetime | None
 
 
 class PresenceListResponse(BaseModel):

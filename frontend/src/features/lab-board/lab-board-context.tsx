@@ -59,9 +59,10 @@ type PresenceItemResponse = {
   room_id: number | null;
   room_name: string | null;
   current_status: string;
-  current_session_id: number | null;
+  current_session_id: string | null;
   last_changed_at: string | null;
   today_check_in_at: string | null;
+  today_check_out_at: string | null;
 };
 
 type PresenceListResponse = {
@@ -362,8 +363,8 @@ function buildLabBoardState(
 
       const checkInAt = presence?.today_check_in_at ? formatTime(presence.today_check_in_at) : "未出勤";
       const checkOutAt =
-        statusLabel === "Off Campus" && checkInAt !== "未出勤" && presence?.last_changed_at
-          ? formatTime(presence.last_changed_at)
+        statusLabel === "Off Campus" && checkInAt !== "未出勤" && presence?.today_check_out_at
+          ? formatTime(presence.today_check_out_at)
           : null;
 
       return {
@@ -405,8 +406,8 @@ function buildBoardStateFromPresence(
     const statusLabel = normalizePresenceStatus(item.current_status);
     const checkInAt = item.today_check_in_at ? formatTime(item.today_check_in_at) : "未出勤";
     const checkOutAt =
-      statusLabel === "Off Campus" && checkInAt !== "未出勤" && item.last_changed_at
-        ? formatTime(item.last_changed_at)
+      statusLabel === "Off Campus" && checkInAt !== "未出勤" && item.today_check_out_at
+        ? formatTime(item.today_check_out_at)
         : null;
     return {
       id: item.user_id,
@@ -446,8 +447,8 @@ function buildMemberBoardState(
         currentSessionId: presence.current_session_id,
         checkInAt: presence.today_check_in_at ? formatTime(presence.today_check_in_at) : "未出勤",
         checkOutAt:
-          statusLabel === "Off Campus" && presence.today_check_in_at && presence.last_changed_at
-            ? formatTime(presence.last_changed_at)
+          statusLabel === "Off Campus" && presence.today_check_in_at && presence.today_check_out_at
+            ? formatTime(presence.today_check_out_at)
             : null,
       },
     ],
