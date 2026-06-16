@@ -64,10 +64,11 @@ def create_sqlite_backup(
 
 def _backup_sqlite_database(*, source_path: Path, output_path: Path) -> None:
     source = sqlite3.connect(f"file:{source_path}?mode=ro", uri=True)
+    destination = sqlite3.connect(output_path)
     try:
-        with sqlite3.connect(output_path) as destination:
-            source.backup(destination)
+        source.backup(destination)
     finally:
+        destination.close()
         source.close()
 
 
@@ -91,7 +92,7 @@ def _trim_backup_generations(
 
     existing = sorted(
         backup_dir.glob(pattern),
-        key=lambda path: path.stat().st_mtime,
+        key=lambda path: path.name,
         reverse=True,
     )
     for stale_path in existing[retention_count:]:

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import calendar
 import urllib.parse
-from datetime import date, datetime, timezone
+from datetime import date
 from io import BytesIO
 from zoneinfo import ZoneInfo
 
@@ -27,6 +27,49 @@ _HEADER_ROW = 3
 _DAY_START_ROW = 4  # 1日はこの行から始まる
 
 
+def create_notes_workbook(notes: list[NoteRecord]) -> bytes:
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill
+    except ModuleNotFoundError as e:
+        raise RuntimeError("openpyxl is required to export workbooks.") from e
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "日誌一覧"
+
+    headers = ["日付", "タイトル", "今日やったこと", "今後やること"]
+    header_fill = PatternFill("solid", fgColor="D9EAF7")
+    header_font = Font(bold=True)
+    wrap_top = Alignment(vertical="top", wrap_text=True)
+
+    for col, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+
+    for row, note in enumerate(notes, start=2):
+        note_date = (
+            note.note_date.isoformat()
+            if hasattr(note.note_date, "isoformat")
+            else str(note.note_date)
+        )
+        values = [note_date, note.title, note.did_today, note.future_tasks]
+        for col, value in enumerate(values, start=1):
+            cell = ws.cell(row=row, column=col, value=value)
+            cell.alignment = wrap_top
+
+    ws.column_dimensions["A"].width = 12
+    ws.column_dimensions["B"].width = 24
+    ws.column_dimensions["C"].width = 42
+    ws.column_dimensions["D"].width = 42
+    ws.freeze_panes = "A2"
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
 def create_timesheet_workbook(
     year: int,
     month: int,
@@ -36,7 +79,7 @@ def create_timesheet_workbook(
 ) -> bytes:
     try:
         from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+        from openpyxl.styles import Alignment, Border, Font, Side
     except ModuleNotFoundError as e:
         raise RuntimeError("openpyxl is required to export workbooks.") from e
 
@@ -62,8 +105,6 @@ def create_timesheet_workbook(
 
     a_center  = Alignment(horizontal="center", vertical="center")
     a_left    = Alignment(horizontal="left",   vertical="top", wrap_text=True)
-    a_right   = Alignment(horizontal="right",  vertical="center")
-
     thin = Side(style="thin")
     border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
 

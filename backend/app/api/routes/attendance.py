@@ -4,9 +4,14 @@ from fastapi import APIRouter
 
 from app.api.deps import ActiveUser, AppStores
 from app.api.routes.presence import serialize_presence_item
-from app.schemas.attendance import CheckInRequest, CheckOutRequest
+from app.schemas.attendance import AttendanceSummaryResponse, CheckInRequest, CheckOutRequest
 from app.schemas.presence import PresenceItem
-from app.services.attendance_service import check_in, check_out, resolve_target_user
+from app.services.attendance_service import (
+    build_weekly_attendance_summary,
+    check_in,
+    check_out,
+    resolve_target_user,
+)
 
 router = APIRouter(prefix="/attendance")
 
@@ -23,3 +28,8 @@ def check_out_route(payload: CheckOutRequest, actor: ActiveUser, stores: AppStor
     target = resolve_target_user(stores, actor, payload.target_user_id)
     presence = check_out(stores, actor=actor, target=target)
     return serialize_presence_item(stores, target, presence=presence)
+
+
+@router.get("/summary/weekly", response_model=AttendanceSummaryResponse)
+def weekly_summary_route(actor: ActiveUser, stores: AppStores) -> AttendanceSummaryResponse:
+    return AttendanceSummaryResponse(items=build_weekly_attendance_summary(stores))

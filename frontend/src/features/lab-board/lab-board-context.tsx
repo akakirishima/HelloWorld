@@ -69,6 +69,18 @@ type PresenceListResponse = {
   items: PresenceItemResponse[];
 };
 
+type AttendanceSummaryItemResponse = {
+  user_id: string;
+  display_name: string;
+  today_duration_sec: number;
+  weekly_duration_sec: number;
+  rank: number;
+};
+
+type AttendanceSummaryResponse = {
+  items: AttendanceSummaryItemResponse[];
+};
+
 type LabResponse = {
   id: number;
   name: string;
@@ -109,20 +121,22 @@ export function LabBoardProvider({ children }: { children: ReactNode }) {
 
   const refreshFromApi = useCallback(async () => {
     if (user?.role === "admin") {
-      const [lab, rooms, users, presence] = await Promise.all([
+      const [lab, rooms, users, presence, attendanceSummary] = await Promise.all([
         apiFetch<LabResponse>("/settings/lab"),
         apiFetch<{ items: RoomResponse[] }>("/rooms"),
         apiFetch<{ items: UserResponse[] }>("/users"),
         apiFetch<PresenceListResponse>("/presence"),
+        apiFetch<AttendanceSummaryResponse>("/attendance/summary/weekly"),
       ]);
-      setState(buildLabBoardState(lab, rooms.items, users.items, presence.items));
+      setState(buildLabBoardState(lab, rooms.items, users.items, presence.items, attendanceSummary.items));
     } else if (user) {
-      const [lab, rooms, presence] = await Promise.all([
+      const [lab, rooms, presence, attendanceSummary] = await Promise.all([
         apiFetch<LabResponse>("/settings/lab"),
         apiFetch<{ items: RoomResponse[] }>("/rooms"),
         apiFetch<PresenceListResponse>("/presence"),
+        apiFetch<AttendanceSummaryResponse>("/attendance/summary/weekly"),
       ]);
-      setState(buildBoardStateFromPresence(lab, rooms.items, presence.items));
+      setState(buildBoardStateFromPresence(lab, rooms.items, presence.items, attendanceSummary.items));
     }
     setIsLoaded(true);
   }, [user]);
@@ -333,6 +347,7 @@ function buildLabBoardState(
   rooms: RoomResponse[],
   users: UserResponse[],
   presenceItems: PresenceItemResponse[],
+  attendanceSummaryItems: AttendanceSummaryItemResponse[],
 ): LabBoardState {
   const mappedRooms = rooms.map((room) => ({
     id: String(room.id),
@@ -355,10 +370,12 @@ function buildLabBoardState(
   }));
 
   const presenceByUser = new Map(presenceItems.map((item) => [item.user_id, item]));
+  const attendanceSummaryByUser = new Map(attendanceSummaryItems.map((item) => [item.user_id, item]));
   const rows: DashboardMatrixRow[] = mappedUsers
     .filter((item) => item.role === "member" && item.isActive)
     .map((item) => {
       const presence = presenceByUser.get(item.userId);
+      const attendanceSummary = attendanceSummaryByUser.get(item.userId);
       const statusLabel = normalizePresenceStatus(presence?.current_status);
 
       const checkInAt = presence?.today_check_in_at ? formatTime(presence.today_check_in_at) : "未出勤";
@@ -377,6 +394,9 @@ function buildLabBoardState(
         currentSessionId: presence?.current_session_id ?? null,
         checkInAt,
         checkOutAt,
+        todayDurationSec: attendanceSummary?.today_duration_sec ?? 0,
+        weeklyDurationSec: attendanceSummary?.weekly_duration_sec ?? 0,
+        weeklyRank: attendanceSummary?.rank ?? null,
       };
     });
 
@@ -394,6 +414,7 @@ function buildBoardStateFromPresence(
   lab: LabResponse,
   rooms: RoomResponse[],
   presenceItems: PresenceItemResponse[],
+  attendanceSummaryItems: AttendanceSummaryItemResponse[],
 ): LabBoardState {
   const mappedRooms = rooms.map((room) => ({
     id: String(room.id),
@@ -402,8 +423,10 @@ function buildBoardStateFromPresence(
     isActive: room.is_active,
   }));
 
+  const attendanceSummaryByUser = new Map(attendanceSummaryItems.map((item) => [item.user_id, item]));
   const rows: DashboardMatrixRow[] = presenceItems.map((item) => {
     const statusLabel = normalizePresenceStatus(item.current_status);
+    const attendanceSummary = attendanceSummaryByUser.get(item.user_id);
     const checkInAt = item.today_check_in_at ? formatTime(item.today_check_in_at) : "未出勤";
     const checkOutAt =
       statusLabel === "Off Campus" && checkInAt !== "未出勤" && item.today_check_out_at
@@ -419,39 +442,15 @@ function buildBoardStateFromPresence(
       currentSessionId: item.current_session_id,
       checkInAt,
       checkOutAt,
+      todayDurationSec: attendanceSummary?.today_duration_sec ?? 0,
+      weeklyDurationSec: attendanceSummary?.weekly_duration_sec ?? 0,
+      weeklyRank: attendanceSummary?.rank ?? null,
     };
   });
 
   return {
     lab: { labName: lab.name, rooms: mappedRooms },
     rows: sortDashboardRows(rows),
-    users: [],
-  };
-}
-
-function buildMemberBoardState(
-  user: import("@/types/app").AuthUser,
-  presence: PresenceItemResponse,
-): LabBoardState {
-  const statusLabel = normalizePresenceStatus(presence.current_status);
-  return {
-    lab: { labName: "", rooms: [] },
-    rows: [
-      {
-        id: user.userId,
-        name: user.displayName,
-        academicGrade: normalizeAcademicYear(user.academicYear),
-        roomId: presence.room_id === null ? null : String(presence.room_id),
-        activeColumn: mapStatusToMatrixColumn(statusLabel),
-        statusLabel,
-        currentSessionId: presence.current_session_id,
-        checkInAt: presence.today_check_in_at ? formatTime(presence.today_check_in_at) : "未出勤",
-        checkOutAt:
-          statusLabel === "Off Campus" && presence.today_check_in_at && presence.today_check_out_at
-            ? formatTime(presence.today_check_out_at)
-            : null,
-      },
-    ],
     users: [],
   };
 }

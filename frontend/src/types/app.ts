@@ -70,6 +70,9 @@ export type DashboardMatrixRow = {
   currentSessionId: string | null;
   checkInAt: string;
   checkOutAt: string | null;
+  todayDurationSec: number;
+  weeklyDurationSec: number;
+  weeklyRank: number | null;
 };
 
 export type DashboardBoardSummaryItem = {

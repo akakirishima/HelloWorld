@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 
@@ -10,6 +11,7 @@ from app.models.presence_latest import PresenceRecord
 from app.models.session import SessionRecord
 from app.models.status_change import StatusChangeRecord
 from app.models.user import UserRecord
+from app.schemas.attendance import AttendanceSummaryItem
 from app.services.audit_service import create_audit_log
 from app.store import Stores
 
@@ -22,6 +24,7 @@ ACTIVE_WORK_STATUSES = {
 }
 
 ALL_STATUSES = ACTIVE_WORK_STATUSES | {PresenceStatus.OFF_CAMPUS.value}
+JST = ZoneInfo("Asia/Tokyo")
 
 
 def resolve_target_user(stores: Stores, actor: UserRecord, target_user_id: str | None) -> UserRecord:
@@ -298,6 +301,96 @@ def patch_session_by_admin(
         reason=reason,
     )
     return updated
+
+
+def build_weekly_attendance_summary(
+    stores: Stores,
+    *,
+    now: datetime | None = None,
+) -> list[AttendanceSummaryItem]:
+    current_time = normalize_datetime(now or datetime.now(timezone.utc))
+    today_start, today_end = get_jst_day_range(current_time)
+    week_start, week_end = get_jst_week_range(current_time)
+
+    users = [
+        user
+        for user in stores.users.list_all()
+        if user.role == UserRole.MEMBER.value and user.is_active
+    ]
+    totals = {
+        user.user_id: {
+            "display_name": user.display_name,
+            "today_duration_sec": 0,
+            "weekly_duration_sec": 0,
+        }
+        for user in users
+    }
+
+    for session_obj in stores.sessions.list_overlapping(week_start, week_end, now=current_time):
+        if session_obj.user_id not in totals:
+            continue
+        totals[session_obj.user_id]["weekly_duration_sec"] += clipped_duration_sec(
+            session_obj,
+            range_start=week_start,
+            range_end=week_end,
+            now=current_time,
+        )
+        totals[session_obj.user_id]["today_duration_sec"] += clipped_duration_sec(
+            session_obj,
+            range_start=today_start,
+            range_end=today_end,
+            now=current_time,
+        )
+
+    sorted_users = sorted(
+        users,
+        key=lambda user: (-totals[user.user_id]["weekly_duration_sec"], user.display_name),
+    )
+    return [
+        AttendanceSummaryItem(
+            user_id=user.user_id,
+            display_name=totals[user.user_id]["display_name"],
+            today_duration_sec=totals[user.user_id]["today_duration_sec"],
+            weekly_duration_sec=totals[user.user_id]["weekly_duration_sec"],
+            rank=index + 1,
+        )
+        for index, user in enumerate(sorted_users)
+    ]
+
+
+def get_jst_day_range(now: datetime) -> tuple[datetime, datetime]:
+    local_now = normalize_datetime(now).astimezone(JST)
+    local_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    local_end = local_start + timedelta(days=1)
+    return local_start.astimezone(timezone.utc), local_end.astimezone(timezone.utc)
+
+
+def get_jst_week_range(now: datetime) -> tuple[datetime, datetime]:
+    local_now = normalize_datetime(now).astimezone(JST)
+    local_start = (local_now - timedelta(days=local_now.weekday())).replace(
+        hour=0,
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
+    local_end = local_start + timedelta(days=7)
+    return local_start.astimezone(timezone.utc), local_end.astimezone(timezone.utc)
+
+
+def clipped_duration_sec(
+    session_obj: SessionRecord,
+    *,
+    range_start: datetime,
+    range_end: datetime,
+    now: datetime,
+) -> int:
+    check_in_at = normalize_datetime(session_obj.check_in_at)
+    check_out_at = normalize_datetime(session_obj.check_out_at) if session_obj.check_out_at else now
+    start_at = max(check_in_at, range_start)
+    end_at = min(check_out_at, range_end)
+    if end_at <= start_at:
+        return 0
+    return int((end_at - start_at).total_seconds())
 
 
 def serialize_session(session_obj: SessionRecord) -> dict:

@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HelloWorld-pr 変更点まとめ</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #647086;
+      --border: #d9dfeb;
+      --accent: #0f766e;
+      --accent-soft: #e6f4f1;
+      --warn: #9a3412;
+      --warn-soft: #fff3e8;
+      --code: #111827;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family:
+        "Yu Gothic UI",
+        "Meiryo",
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+      line-height: 1.65;
+    }
+
+    main {
+      width: min(1040px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 40px 0 56px;
+    }
+
+    header {
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 21px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 18px 0 8px;
+      font-size: 16px;
+      line-height: 1.4;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 1.3em;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    code {
+      color: var(--code);
+      background: #eef1f6;
+      border: 1px solid #dce2ec;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.92em;
+    }
+
+    .lead {
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--muted);
+      padding: 3px 11px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 22px;
+      box-shadow: 0 10px 26px rgb(23 32 51 / 7%);
+    }
+
+    .panel.full {
+      grid-column: 1 / -1;
+    }
+
+    .status {
+      border-left: 5px solid var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .warning {
+      border-left: 5px solid var(--warn);
+      background: var(--warn-soft);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 720px;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--border);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f0f3f8;
+      font-weight: 700;
+    }
+
+    .ok {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .ng {
+      color: var(--warn);
+      font-weight: 700;
+    }
+
+    @media (max-width: 760px) {
+      main {
+        width: min(100% - 24px, 1040px);
+        padding-top: 24px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .panel.full {
+        grid-column: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>HelloWorld-pr 変更点まとめ</h1>
+      <p class="lead">
+        コミット予定の変更に対して、出席週次集計機能、表示更新、テスト失敗の修正、検証結果をまとめた確認用レポートです。
+      </p>
+      <div class="meta">
+        <span class="pill">作成日: 2026-06-16</span>
+        <span class="pill">対象: HelloWorld-pr</span>
+        <span class="pill">状態: 未コミット変更あり</span>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="panel status">
+        <h2>概要</h2>
+        <p>
+          週次の在室・出席時間を backend で集計し、frontend の研究室ボード上に「今週 n.nh」として表示する変更が入っています。
+          併せて、コミット前テストで見つかった backend の既存テスト失敗も修正しました。
+        </p>
+      </article>
+
+      <article class="panel warning">
+        <h2>残っている注意点</h2>
+        <p>
+          frontend の全体 build は、今回の変更外ファイルにある既存 TypeScript エラーで失敗します。
+          差分対象ファイルの lint は通過済みです。
+        </p>
+      </article>
+
+      <article class="panel">
+        <h2>Backend の主な変更</h2>
+        <ul>
+          <li><code>GET /attendance/summary/weekly</code> を追加。</li>
+          <li>JST 基準で「今日」と「今週」の出席時間を集計。</li>
+          <li>未退勤の open session は現在時刻までの滞在時間として計算。</li>
+          <li>member かつ active なユーザーだけをランキング対象にする。</li>
+          <li>週次集計用に session の期間重なり検索を追加。</li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <h2>Frontend の主な変更</h2>
+        <ul>
+          <li>出席週次サマリー API を取得し、ボード行データへ反映。</li>
+          <li>ユーザー行に <code>todayDurationSec</code>、<code>weeklyDurationSec</code>、<code>weeklyRank</code> を追加。</li>
+          <li>カード中央に週次時間ラベルを表示。</li>
+          <li>行の並び順で週次時間を優先するよう更新。</li>
+          <li>React Hooks lint に合わせ、楽観更新と長押し処理を修正。</li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <h2>テスト中に直した問題</h2>
+        <ul>
+          <li>SQLite backup 後のファイルハンドルが Windows で残り、古い世代削除に失敗していた問題を修正。</li>
+          <li>backup 世代削除が mtime 順で不安定だったため、<code>app-YYYYMMDD-HHMMSS</code> のファイル名順へ変更。</li>
+          <li>既存テストが期待していた <code>create_notes_workbook</code> を互換関数として復元。</li>
+          <li><code>note_export_service.py</code> の未使用 import と未使用変数を整理。</li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <h2>検証結果</h2>
+        <ul>
+          <li><span class="ok">PASS</span> <code>py -3.12 -m pytest</code>: 24 passed</li>
+          <li><span class="ok">PASS</span> backend 対象 ruff: All checks passed</li>
+          <li><span class="ok">PASS</span> frontend 差分対象 eslint</li>
+          <li><span class="ng">FAIL</span> <code>npm run build</code>: 既存 TypeScript エラーで停止</li>
+        </ul>
+      </article>
+
+      <article class="panel full">
+        <h2>変更ファイル一覧</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ファイル</th>
+                <th>内容</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>backend/app/api/routes/attendance.py</code></td>
+                <td>週次出席サマリー API を追加。</td>
+              </tr>
+              <tr>
+                <td><code>backend/app/schemas/attendance.py</code></td>
+                <td>週次集計レスポンス用 schema を追加。</td>
+              </tr>
+              <tr>
+                <td><code>backend/app/services/attendance_service.py</code></td>
+                <td>JST の日次・週次範囲計算、期間クリップ、ランキング生成を追加。</td>
+              </tr>
+              <tr>
+                <td><code>backend/app/store/session_store.py</code></td>
+                <td>指定期間と重なる session の取得処理を追加。</td>
+              </tr>
+              <tr>
+                <td><code>backend/tests/test_attendance_presence_sessions.py</code></td>
+                <td>JST 範囲、週またぎ、日またぎ、未退勤 session の集計テストを追加。</td>
+              </tr>
+              <tr>
+                <td><code>backend/app/services/backup_service.py</code></td>
+                <td>SQLite backup の close 処理と、世代削除の並び順を修正。</td>
+              </tr>
+              <tr>
+                <td><code>backend/app/services/note_export_service.py</code></td>
+                <td>既存テスト互換の notes workbook export を復元。</td>
+              </tr>
+              <tr>
+                <td><code>frontend/src/features/lab-board/lab-board-context.tsx</code></td>
+                <td>週次出席サマリー API の取得とボード状態への反映。</td>
+              </tr>
+              <tr>
+                <td><code>frontend/src/components/dashboard/status-card-grid.tsx</code></td>
+                <td>週次時間ラベル表示、長押し処理、楽観更新の lint 対応。</td>
+              </tr>
+              <tr>
+                <td><code>frontend/src/mocks/app-data.ts</code></td>
+                <td>モック行に出席時間フィールドを追加し、週次時間順の並び替えに対応。</td>
+              </tr>
+              <tr>
+                <td><code>frontend/src/types/app.ts</code></td>
+                <td>Dashboard 行型に出席時間フィールドを追加。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="panel full">
+        <h2>frontend build の既存失敗</h2>
+        <p>
+          <code>npm run build</code> は以下の既存エラーで停止します。今回の差分対象 lint は通過しているため、コミット判断時は別タスクとして扱えます。
+        </p>
+        <ul>
+          <li><code>src/pages/animation-demo-page.tsx</code>: 未使用変数 <code>idx</code>、<code>animKey</code>、<code>sequence</code>、<code>isActive</code>、<code>shakeAmp</code>。</li>
+          <li><code>src/pages/calibration-page.tsx</code>: <code>Mat3</code> に対して <code>() =&gt; number[]</code> を渡している型不一致。</li>
+        </ul>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

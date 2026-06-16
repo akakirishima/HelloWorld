@@ -20,3 +20,15 @@ class CheckOutRequest(BaseModel):
 class ChangeStatusRequest(BaseModel):
     target_user_id: str | None = None
     to_status: AttendanceStatus
+
+
+class AttendanceSummaryItem(BaseModel):
+    user_id: str
+    display_name: str
+    today_duration_sec: int
+    weekly_duration_sec: int
+    rank: int
+
+
+class AttendanceSummaryResponse(BaseModel):
+    items: list[AttendanceSummaryItem]

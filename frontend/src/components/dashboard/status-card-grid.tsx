@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import type { DashboardMatrixRow } from "@/types/app";
 
 import { Crosshair, FlaskConical, GraduationCap, Home } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { cn } from "@/lib/utils";
@@ -81,21 +81,21 @@ function StatusCard({
 }) {
   const navigate = useNavigate();
   const serverActive = mapRowToSection(row);
-  const [localActive, setLocalActive] = useState<SectionKey | null>(null);
+  const [optimisticActive, setOptimisticActive] = useState<{
+    serverActive: SectionKey;
+    value: SectionKey;
+  } | null>(null);
   const [pressing, setPressing] = useState<SectionKey | null>(null);
   const [progress, setProgress] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
 
-  // サーバー状態が変わったら楽観的表示をリセット
-  useEffect(() => {
-    setLocalActive(null);
-  }, [serverActive]);
-
-  const activeSection = localActive ?? serverActive;
+  const activeSection =
+    optimisticActive?.serverActive === serverActive ? optimisticActive.value : serverActive;
   const nameStyle = buildNameStyle(row.name, fillViewport, rowCount);
   const theme = sectionThemes[activeSection];
   const iconSizes = computeIconSizes(rowCount, fillViewport);
+  const weeklyDurationLabel = `今週 ${formatDurationHours(row.weeklyDurationSec)}`;
 
   const getFillPct = (key: SectionKey): number => {
     if (pressing && pressing !== activeSection) {
@@ -106,18 +106,18 @@ function StatusCard({
     return key === activeSection ? 1 : 0;
   };
 
-  const handlePressStart = (section: SectionKey) => {
+  const handlePressStart = (section: SectionKey, startTime: number) => {
     if (disabledSections.includes(section)) return;
     if (section === activeSection) return;
     setPressing(section);
     setProgress(0);
-    startTimeRef.current = Date.now();
+    startTimeRef.current = startTime;
     timerRef.current = setInterval(() => {
-      const p = Math.min(1, (Date.now() - startTimeRef.current) / HOLD_MS);
+      const p = Math.min(1, (performance.now() - startTimeRef.current) / HOLD_MS);
       setProgress(p);
       if (p >= 1) {
         clearInterval(timerRef.current!);
-        setLocalActive(section);
+        setOptimisticActive({ serverActive, value: section });
         setPressing(null);
         setProgress(0);
         void onSectionSelect?.(row.id, section);
@@ -151,13 +151,22 @@ function StatusCard({
           >
             {row.checkInAt !== "未出勤" ? row.checkInAt : ""}
           </span>
-          <p
-            className={cn("truncate text-center font-semibold tracking-[-0.01em] transition-colors duration-700", theme.nameText)}
-            style={nameStyle}
-            title={row.name}
-          >
-            {row.name}
-          </p>
+          <div className="min-w-0 max-w-[62%] text-center">
+            <p
+              className={cn("truncate font-semibold transition-colors duration-700", theme.nameText)}
+              style={nameStyle}
+              title={row.name}
+            >
+              {row.name}
+            </p>
+            <p
+              className={cn("mt-0.5 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
+              style={{ fontSize: Math.max(12, (nameStyle.fontSize as number) * 0.36), lineHeight: 1.1, opacity: 0.78 }}
+              title={weeklyDurationLabel}
+            >
+              {weeklyDurationLabel}
+            </p>
+          </div>
           <span
             className={cn("absolute right-2 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
             style={{ fontSize: Math.max(16, (nameStyle.fontSize as number) * 1.2), opacity: row.checkOutAt ? 0.85 : 0 }}
@@ -178,7 +187,7 @@ function StatusCard({
             iconSizes={iconSizes}
             label={section.label}
             sectionKey={section.key}
-            onPressStart={() => handlePressStart(section.key)}
+            onPressStart={(startTime) => handlePressStart(section.key, startTime)}
             onPressEnd={handlePressEnd}
           />
         ))}
@@ -238,6 +247,10 @@ function buildNameStyle(name: string, fillViewport: boolean, rowCount = 6): CSSP
   };
 }
 
+function formatDurationHours(durationSec: number): string {
+  return `${(Math.max(0, durationSec) / 3600).toFixed(1)}h`;
+}
+
 function StatusSection({
   fillPct,
   noTransition,
@@ -256,7 +269,7 @@ function StatusSection({
   sectionKey: SectionKey;
   fillViewport: boolean;
   iconSizes: IconSizes;
-  onPressStart: () => void;
+  onPressStart: (startTime: number) => void;
   onPressEnd: () => void;
 }) {
   const Icon = sectionIcons[sectionKey];
@@ -276,7 +289,7 @@ function StatusSection({
           ? { paddingTop: iconSizes.sectionPad, paddingBottom: iconSizes.sectionPad }
           : { minHeight: 84, paddingTop: 10, paddingBottom: 10 }
       }
-      onPointerDown={onPressStart}
+      onPointerDown={(event) => onPressStart(event.timeStamp)}
       onPointerUp={onPressEnd}
       onPointerLeave={onPressEnd}
       onPointerCancel={onPressEnd}

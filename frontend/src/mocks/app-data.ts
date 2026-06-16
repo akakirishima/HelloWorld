@@ -373,6 +373,9 @@ export const initialDashboardMatrixRows: DashboardMatrixRow[] = presenceMembers.
   statusLabel: member.currentStatus,
   currentSessionId: null,
   checkOutAt: null,
+  todayDurationSec: 0,
+  weeklyDurationSec: 0,
+  weeklyRank: null,
   checkInAt: member.todayCheckInAt ?? "未出勤",
 }));
 
@@ -418,6 +421,12 @@ export function getActiveRooms(rooms: RoomItem[]): RoomItem[] {
 
 export function sortDashboardRows(rows: DashboardMatrixRow[]): DashboardMatrixRow[] {
   return [...rows].sort((left, right) => {
+    const weeklyDiff = right.weeklyDurationSec - left.weeklyDurationSec;
+
+    if (weeklyDiff !== 0) {
+      return weeklyDiff;
+    }
+
     const gradeDiff =
       academicGradeOrder.indexOf(left.academicGrade) - academicGradeOrder.indexOf(right.academicGrade);
 
