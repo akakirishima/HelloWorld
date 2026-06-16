@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 
 import type { DashboardMatrixRow } from "@/types/app";
 
-import { Crosshair, FlaskConical, GraduationCap, Home } from "lucide-react";
+import { Crosshair, FlaskConical, GraduationCap, Home, School, Trophy } from "lucide-react";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -16,16 +16,18 @@ type StatusCardGridProps = {
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
 };
 
-type SectionKey = "lab" | "class" | "home";
+type SectionKey = "lab" | "school" | "class" | "home";
 
 const sections: Array<{ key: SectionKey; label: string }> = [
   { key: "lab", label: "Lab" },
+  { key: "school", label: "On School" },
   { key: "class", label: "class" },
   { key: "home", label: "Home" },
 ];
 
 const sectionIcons: Record<SectionKey, typeof FlaskConical> = {
   lab: FlaskConical,
+  school: School,
   class: GraduationCap,
   home: Home,
 };
@@ -37,7 +39,8 @@ export function StatusCardGrid({
   disabledSections = [],
   onSectionSelect,
 }: StatusCardGridProps) {
-  const rowCount = Math.max(1, Math.ceil(rows.length / 2));
+  const hasFeaturedRank = rows.some((row) => row.weeklyRank === 1);
+  const rowCount = Math.max(1, Math.ceil((rows.length + (hasFeaturedRank ? 3 : 0)) / 2));
 
   return (
     <div
@@ -56,7 +59,16 @@ export function StatusCardGrid({
       }
     >
       {rows.map((row, index) => (
-        <StatusCard key={row.id} fillViewport={fillViewport} rowCount={rowCount} disabledSections={disabledSections} onSectionSelect={onSectionSelect} row={row} isLast={index === rows.length - 1} />
+        <StatusCard
+          key={row.id}
+          fillViewport={fillViewport}
+          rowCount={rowCount}
+          disabledSections={disabledSections}
+          onSectionSelect={onSectionSelect}
+          row={row}
+          isFeatured={row.weeklyRank === 1}
+          isLast={index === rows.length - 1}
+        />
       ))}
     </div>
   );
@@ -70,6 +82,7 @@ function StatusCard({
   rowCount,
   disabledSections,
   onSectionSelect,
+  isFeatured,
   isLast,
 }: {
   row: DashboardMatrixRow;
@@ -77,6 +90,7 @@ function StatusCard({
   rowCount: number;
   disabledSections: SectionKey[];
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
+  isFeatured: boolean;
   isLast: boolean;
 }) {
   const navigate = useNavigate();
@@ -93,6 +107,7 @@ function StatusCard({
   const activeSection =
     optimisticActive?.serverActive === serverActive ? optimisticActive.value : serverActive;
   const nameStyle = buildNameStyle(row.name, fillViewport, rowCount);
+  const nameFontSize = getFontSizePx(nameStyle.fontSize);
   const theme = sectionThemes[activeSection];
   const iconSizes = computeIconSizes(rowCount, fillViewport);
   const weeklyDurationLabel = `今週 ${formatDurationHours(row.weeklyDurationSec)}`;
@@ -136,6 +151,7 @@ function StatusCard({
       className={cn(
         "relative min-w-0 overflow-hidden rounded-[20px] border-2 shadow-soft transition-colors duration-700",
         fillViewport ? "flex h-full flex-col" : "",
+        isFeatured && "col-span-2 row-span-2 ring-4 ring-amber-300/80",
         theme.cardBorder,
         theme.cardBg,
       )}
@@ -147,7 +163,7 @@ function StatusCard({
         <div className="relative flex items-center justify-center px-2">
           <span
             className={cn("absolute left-2 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
-            style={{ fontSize: Math.max(16, (nameStyle.fontSize as number) * 1.2), opacity: row.checkInAt !== "未出勤" ? 0.85 : 0 }}
+            style={{ fontSize: Math.max(16, nameFontSize * 1.2), opacity: row.checkInAt !== "未出勤" ? 0.85 : 0 }}
           >
             {row.checkInAt !== "未出勤" ? row.checkInAt : ""}
           </span>
@@ -161,7 +177,7 @@ function StatusCard({
             </p>
             <p
               className={cn("mt-0.5 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
-              style={{ fontSize: Math.max(12, (nameStyle.fontSize as number) * 0.36), lineHeight: 1.1, opacity: 0.78 }}
+              style={{ fontSize: Math.max(12, nameFontSize * 0.36), lineHeight: 1.1, opacity: 0.78 }}
               title={weeklyDurationLabel}
             >
               {weeklyDurationLabel}
@@ -169,14 +185,14 @@ function StatusCard({
           </div>
           <span
             className={cn("absolute right-2 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
-            style={{ fontSize: Math.max(16, (nameStyle.fontSize as number) * 1.2), opacity: row.checkOutAt ? 0.85 : 0 }}
+            style={{ fontSize: Math.max(16, nameFontSize * 1.2), opacity: row.checkOutAt ? 0.85 : 0 }}
           >
             {row.checkOutAt ?? ""}
           </span>
         </div>
       </header>
 
-      <div className={cn("grid grid-cols-3 divide-x transition-colors duration-700", theme.sectionsDivide, theme.sectionsBg, fillViewport ? "flex-1 min-h-0" : "")} style={{ transitionDelay: "0ms" }}>
+      <div className={cn("grid grid-cols-4 divide-x transition-colors duration-700", theme.sectionsDivide, theme.sectionsBg, fillViewport ? "flex-1 min-h-0" : "")} style={{ transitionDelay: "0ms" }}>
         {sections.map((section) => (
           <StatusSection
             key={section.key}
@@ -206,6 +222,13 @@ function StatusCard({
             strokeWidth={1.5}
           />
         </button>
+      )}
+
+      {isFeatured && (
+        <div className="pointer-events-none absolute bottom-2 left-2 z-20 flex items-center gap-1 rounded-full border border-amber-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-amber-800 shadow-sm">
+          <Trophy size={14} strokeWidth={2.2} aria-hidden="true" />
+          <span>Weekly #1</span>
+        </div>
       )}
     </article>
   );
@@ -249,6 +272,21 @@ function buildNameStyle(name: string, fillViewport: boolean, rowCount = 6): CSSP
 
 function formatDurationHours(durationSec: number): string {
   return `${(Math.max(0, durationSec) / 3600).toFixed(1)}h`;
+}
+
+function getFontSizePx(fontSize: CSSProperties["fontSize"]): number {
+  if (typeof fontSize === "number") {
+    return fontSize;
+  }
+
+  if (typeof fontSize === "string") {
+    const parsed = Number.parseFloat(fontSize);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return 18;
 }
 
 function StatusSection({
@@ -334,6 +372,10 @@ function mapRowToSection(row: DashboardMatrixRow): SectionKey {
     return "lab";
   }
 
+  if (row.activeColumn === "onCampus" || row.statusLabel === "On Campus") {
+    return "school";
+  }
+
   return "class";
 }
 
@@ -378,6 +420,26 @@ const sectionThemes: Record<
     sectionsBg: "bg-emerald-100",
     sectionsDivide: "divide-emerald-300",
     textActive: "text-emerald-950",
+    textInactive: "text-black/30",
+  },
+  school: {
+    activeBg: "bg-amber-200",
+    cardBg: "bg-amber-100",
+    cardBorder: "border-amber-500",
+    fillBg: "bg-amber-100",
+    headerBg: "bg-amber-200",
+    headerBorder: "border-amber-300",
+    iconActiveBg: "bg-amber-600",
+    iconActiveBorder: "border-amber-400",
+    iconActiveText: "text-white",
+    iconInactiveBg: "bg-amber-200",
+    iconInactiveBorder: "border-amber-300",
+    iconInactiveText: "text-black/30",
+    inactiveBg: "bg-amber-100",
+    nameText: "text-amber-950",
+    sectionsBg: "bg-amber-100",
+    sectionsDivide: "divide-amber-300",
+    textActive: "text-amber-950",
     textInactive: "text-black/30",
   },
   class: {

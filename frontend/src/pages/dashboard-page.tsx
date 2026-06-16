@@ -78,6 +78,9 @@ export function DashboardPage() {
               if (section === "lab") {
                 return handleCellSelect(rowId, "room");
               }
+              if (section === "school") {
+                return handleCellSelect(rowId, "onCampus");
+              }
               return handleCellSelect(rowId, section);
             }}
             rows={visibleRows}

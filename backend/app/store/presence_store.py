@@ -8,13 +8,20 @@ from app.models.presence_latest import PresenceRecord
 
 
 def _row_to_record(row: object) -> PresenceRecord:
+    updated_at = _parse_datetime(row["updated_at"])
     return PresenceRecord(
         user_id=row["user_id"],
         current_status=row["current_status"],
         current_session_id=row["current_session_id"],
-        last_changed_at=datetime.fromisoformat(row["last_changed_at"]),
-        updated_at=datetime.fromisoformat(row["updated_at"]),
+        last_changed_at=_parse_datetime(row["last_changed_at"], fallback=updated_at),
+        updated_at=updated_at,
     )
+
+
+def _parse_datetime(value: object, *, fallback: datetime | None = None) -> datetime:
+    if isinstance(value, str) and value:
+        return datetime.fromisoformat(value)
+    return fallback or datetime.now(timezone.utc)
 
 
 class PresenceStore:
