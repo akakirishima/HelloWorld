@@ -51,12 +51,12 @@ export function DashboardBoardPage() {
         <StatusCardGrid
           className="h-full w-full"
           fillViewport
-          disabledSections={user.role !== "admin" ? ["lab", "school", "class", "home"] : []}
+          disabledSections={user.role !== "admin" ? ["lab", "onCampus", "class", "home"] : []}
           onSectionSelect={user.role === "admin" ? (rowId, section) => {
             if (section === "lab") {
               return handleCellSelect(rowId, "room");
             }
-            if (section === "school") {
+            if (section === "onCampus") {
               return handleCellSelect(rowId, "onCampus");
             }
             return handleCellSelect(rowId, section);

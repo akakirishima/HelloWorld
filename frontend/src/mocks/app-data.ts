@@ -403,13 +403,13 @@ export function mapMatrixColumnToStatus(column: DashboardMatrixColumn): Presence
 
 export function buildDashboardBoardSummary(rows: DashboardMatrixRow[]): DashboardBoardSummaryItem[] {
   const roomCount = rows.filter((row) => row.activeColumn === "room").length;
-  const onSchoolCount = rows.filter((row) => row.activeColumn === "onCampus").length;
+  const onCampusCount = rows.filter((row) => row.activeColumn === "onCampus").length;
   const classCount = rows.filter((row) => row.activeColumn === "class").length;
   const homeCount = rows.filter((row) => row.activeColumn === "home").length;
 
   return [
     { label: "Room", value: `${roomCount} 名` },
-    { label: "On School", value: `${onSchoolCount} 名` },
+    { label: "On Campus", value: `${onCampusCount} 名` },
     { label: "Class", value: `${classCount} 名` },
     { label: "Home", value: `${homeCount} 名` },
   ];

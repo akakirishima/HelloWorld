@@ -78,7 +78,7 @@ export function DashboardPage() {
               if (section === "lab") {
                 return handleCellSelect(rowId, "room");
               }
-              if (section === "school") {
+              if (section === "onCampus") {
                 return handleCellSelect(rowId, "onCampus");
               }
               return handleCellSelect(rowId, section);

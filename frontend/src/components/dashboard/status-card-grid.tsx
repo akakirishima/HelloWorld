@@ -16,18 +16,18 @@ type StatusCardGridProps = {
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
 };
 
-type SectionKey = "lab" | "school" | "class" | "home";
+type SectionKey = "lab" | "onCampus" | "class" | "home";
 
 const sections: Array<{ key: SectionKey; label: string }> = [
   { key: "lab", label: "Lab" },
-  { key: "school", label: "On School" },
+  { key: "onCampus", label: "On Campus" },
   { key: "class", label: "class" },
   { key: "home", label: "Home" },
 ];
 
 const sectionIcons: Record<SectionKey, typeof FlaskConical> = {
   lab: FlaskConical,
-  school: School,
+  onCampus: School,
   class: GraduationCap,
   home: Home,
 };
@@ -373,7 +373,7 @@ function mapRowToSection(row: DashboardMatrixRow): SectionKey {
   }
 
   if (row.activeColumn === "onCampus" || row.statusLabel === "On Campus") {
-    return "school";
+    return "onCampus";
   }
 
   return "class";
@@ -422,7 +422,7 @@ const sectionThemes: Record<
     textActive: "text-emerald-950",
     textInactive: "text-black/30",
   },
-  school: {
+  onCampus: {
     activeBg: "bg-amber-200",
     cardBg: "bg-amber-100",
     cardBorder: "border-amber-500",
