@@ -1,25 +1,65 @@
 # 研究室 在室・勤怠・日誌管理システム
 
-研究室向けの在室状況・勤怠・日誌を管理するウェブアプリです。  
-Raspberry Pi 上で動かし、研究室のLAN内だけからアクセスできます。
+研究室向けの在室状況、勤怠、日誌を管理する Web アプリです。
 
----
+Raspberry Pi 上で frontend と backend を起動し、研究室 LAN 内の端末から在室ボードや管理画面を確認できる構成にしています。
+
+## 目的
+
+- 研究室メンバーの在室状況を、全体表示と部屋別表示で素早く確認する
+- 出勤、退勤、在室ステータス変更を記録する
+- 日誌、勤怠履歴、監査ログを研究室運用の記録として残す
+- 管理者がメンバー、部屋、表示順、勤怠修正を扱える導線を用意する
+- タッチモニターでも使いやすい、情報密度の高い業務 UI にする
 
 ## 構成
 
-| 役割 | 技術 | URL |
-|------|------|-----|
-| 画面（frontend） | Vite + React + TypeScript | `http://172.16.1.111:5173` |
-| API（backend） | FastAPI + SQLite | `http://127.0.0.1:8000` |
+| 役割 | 技術 | ローカル URL |
+| --- | --- | --- |
+| frontend | Vite + React + TypeScript | `http://172.16.1.111:5173` |
+| backend | FastAPI + SQLite / JSON store | `http://127.0.0.1:8000` |
 
-- frontend と backend を別々のターミナルで起動します
-- Raspberry Pi が研究室 LAN（172.16.1.x）にしかつながっていないため、外部からはアクセスできません
+- frontend と backend は別ターミナルで起動する
+- Raspberry Pi は研究室 LAN 内で運用する
+- 外部公開ではなく、研究室内の運用端末から使う前提
 
----
+## 主な機能
+
+- ログインとセッション管理
+- 研究室全体 / 部屋別の在室ステータスボード
+- 出勤、退勤、ステータス変更
+- メンバー、部屋、表示順の管理
+- 日誌作成、編集、閲覧
+- 勤怠履歴、管理者による修正、監査ログ
+- タッチモニター用ボード表示
+- SQLite / JSON / Markdown データのバックアップ導線
+
+## 技術スタック
+
+### Frontend
+
+- React 19
+- TypeScript
+- Vite
+- React Router
+- TanStack Query
+- React Hook Form
+- Zod
+- Tailwind CSS
+- lucide-react
+
+### Backend
+
+- FastAPI
+- SQLite
+- JSON / Markdown file store
+- Session-based auth
+- pytest
+- ruff
 
 ## 起動方法
 
-### backend を起動する
+### backend
 
 ```bash
 cd ~/Documents/HelloWorld/backend
@@ -27,32 +67,30 @@ source .venv/bin/activate
 uvicorn app.main:app --reload
 ```
 
-起動すると `http://127.0.0.1:8000` で API が立ち上がります。  
-`--reload` をつけると、コードを変更したときに自動で再起動します。
+API は `http://127.0.0.1:8000` で起動します。
 
-### frontend を起動する
+`--reload` により、開発中のコード変更を検知して自動再起動します。
 
-別のターミナルを開いて：
+### frontend
+
+別ターミナルで起動します。
 
 ```bash
 cd ~/Documents/HelloWorld/frontend
 npm run dev -- --host
 ```
 
-起動すると `http://172.16.1.111:5173` でアクセスできます。  
-`--host` をつけることで、同じ LAN 内の他の端末からもアクセスできるようになります。
+研究室 LAN 内の端末から `http://172.16.1.111:5173` にアクセスします。
 
-### 停止する
+`--host` を付けることで、同じ LAN 内の別端末から確認できます。
 
-それぞれのターミナルで `Ctrl+C` を押すと止まります。
+### 停止
 
----
+それぞれのターミナルで `Ctrl+C` を押します。
 
 ## 初回セットアップ
 
-クローン直後など、初めて動かすときだけ必要な手順です。
-
-### backend のセットアップ
+### backend
 
 ```bash
 cd ~/Documents/HelloWorld/backend
@@ -61,7 +99,7 @@ source .venv/bin/activate
 pip install -e .[dev]
 ```
 
-`.env` ファイルがない場合は作成します：
+`.env` がない場合は作成します。
 
 ```bash
 cp .env.example .env 2>/dev/null || cat > .env << 'EOF'
@@ -73,67 +111,71 @@ AUTO_SEED=true
 EOF
 ```
 
-`AUTO_SEED=true` にしておくと、初回起動時にデモ用のアカウントとデータが自動で入ります。
+`AUTO_SEED=true` にすると、ローカル確認用の初期データを投入できます。
 
-### frontend のセットアップ
+公開 README には固定のログイン情報を置かず、実運用では環境ごとに初期情報を管理します。
+
+### frontend
 
 ```bash
 cd ~/Documents/HelloWorld/frontend
 npm install
 ```
 
----
+## 動作確認
 
-## 使えるアカウント（初期データ）
+- `http://172.16.1.111:5173` でログイン画面が表示される
+- `http://127.0.0.1:8000/api/health` が `{"status":"ok"}` を返す
+- `http://127.0.0.1:8000/api/docs` で API 一覧を確認できる
+- 在室ボードで研究室全体と部屋別の状態を切り替えられる
+- `backend/data/local.db` が作成される
 
-`AUTO_SEED=true` で起動した場合、以下のアカウントが使えます：
+## 検証コマンド
 
-| ユーザー名 | パスワード | 権限 |
-|-----------|-----------|------|
-| `admin` | `admin1234` | 管理者（設定・部屋・ユーザー管理） |
-| `shimizu-yuichiro` | `shimizu1234` | メンバー（在室・勤怠・日誌） |
+backend:
 
----
+```bash
+cd backend
+pytest
+ruff check .
+```
 
-## 動作確認ポイント
+frontend:
 
-起動後に以下を確認してください：
-
-- `http://172.16.1.111:5173` でログイン画面が出る
-- `http://127.0.0.1:8000/api/health` を開いて `{"status":"ok"}` が返ってくる
-- `http://127.0.0.1:8000/api/docs` でAPI一覧が見られる
-- `admin` でログインできる
-- `backend/data/local.db` が作成されている
-
----
+```bash
+cd frontend
+npm run lint
+```
 
 ## ディレクトリ構成
 
-```
+```text
 HelloWorld/
-├── frontend/        # Vite + React + TypeScript + Tailwind CSS
+├── frontend/
 │   └── src/
-│       ├── app/         # ルーティング・認証
-│       ├── components/  # UI パーツ
-│       └── features/    # 機能ごとのロジック
-├── backend/         # FastAPI + SQLite
+│       ├── api/
+│       ├── app/
+│       ├── components/
+│       ├── features/
+│       ├── pages/
+│       └── types/
+├── backend/
 │   ├── app/
-│   │   ├── api/         # APIエンドポイント
-│   │   ├── core/        # 設定・認証
-│   │   ├── models/      # データモデル
-│   │   └── services/    # ビジネスロジック
-│   ├── data/            # SQLite・JSONストア（起動後に自動生成）
-│   └── .venv/           # Python 仮想環境
-├── infra/           # Caddy・systemd 設定（使う場合）
-├── docs/            # 詳細な手順書
-└── CLAUDE.md        # Claude Code 向けの指示
+│   │   ├── api/
+│   │   ├── core/
+│   │   ├── db/
+│   │   ├── models/
+│   │   ├── services/
+│   │   └── store/
+│   ├── data/
+│   └── tests/
+├── docs/
+└── CLAUDE.md
 ```
 
----
+## タッチモニター表示
 
-## タッチモニター（キオスクモード）
-
-ダッシュボードをタッチモニターでフルスクリーン表示する場合：
+ダッシュボードをフルスクリーン表示する場合:
 
 ```bash
 chromium \
@@ -146,12 +188,11 @@ chromium \
   http://localhost:5173/board
 ```
 
-### タッチ位置がずれている場合
+タッチ位置がずれる場合は、`/demo/calibration` でキャリブレーションできます。
 
-`http://172.16.1.111:5173/demo/calibration` を開いて、画面に表示される × を順番にタッチするとキャリブレーションできます。  
-設定は `/etc/X11/xorg.conf.d/99-calibration.conf` に保存されます。
+設定は `/etc/X11/xorg.conf.d/99-calibration.conf` に保存します。
 
-初回のみ書き込み権限を付与してください：
+初回のみ書き込み権限を付与します。
 
 ```bash
 sudo chown $USER /etc/X11/xorg.conf.d/99-calibration.conf
