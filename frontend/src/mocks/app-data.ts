@@ -373,6 +373,9 @@ export const initialDashboardMatrixRows: DashboardMatrixRow[] = presenceMembers.
   statusLabel: member.currentStatus,
   currentSessionId: null,
   checkOutAt: null,
+  todayDurationSec: 0,
+  weeklyDurationSec: 0,
+  weeklyRank: null,
   checkInAt: member.todayCheckInAt ?? "未出勤",
 }));
 
@@ -400,11 +403,13 @@ export function mapMatrixColumnToStatus(column: DashboardMatrixColumn): Presence
 
 export function buildDashboardBoardSummary(rows: DashboardMatrixRow[]): DashboardBoardSummaryItem[] {
   const roomCount = rows.filter((row) => row.activeColumn === "room").length;
+  const onCampusCount = rows.filter((row) => row.activeColumn === "onCampus").length;
   const classCount = rows.filter((row) => row.activeColumn === "class").length;
   const homeCount = rows.filter((row) => row.activeColumn === "home").length;
 
   return [
     { label: "Room", value: `${roomCount} 名` },
+    { label: "On Campus", value: `${onCampusCount} 名` },
     { label: "Class", value: `${classCount} 名` },
     { label: "Home", value: `${homeCount} 名` },
   ];
@@ -418,6 +423,20 @@ export function getActiveRooms(rooms: RoomItem[]): RoomItem[] {
 
 export function sortDashboardRows(rows: DashboardMatrixRow[]): DashboardMatrixRow[] {
   return [...rows].sort((left, right) => {
+    const leftRank = left.weeklyRank ?? Number.POSITIVE_INFINITY;
+    const rightRank = right.weeklyRank ?? Number.POSITIVE_INFINITY;
+    const rankDiff = leftRank - rightRank;
+
+    if (rankDiff !== 0) {
+      return rankDiff;
+    }
+
+    const weeklyDiff = right.weeklyDurationSec - left.weeklyDurationSec;
+
+    if (weeklyDiff !== 0) {
+      return weeklyDiff;
+    }
+
     const gradeDiff =
       academicGradeOrder.indexOf(left.academicGrade) - academicGradeOrder.indexOf(right.academicGrade);
 

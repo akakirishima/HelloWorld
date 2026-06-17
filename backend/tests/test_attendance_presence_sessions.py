@@ -7,8 +7,10 @@ from app.core.constants import PresenceStatus, UserRole
 from app.core.security import get_password_hash
 from app.db.sqlite_db import SqliteDb
 from app.models.presence_latest import PresenceRecord
+from app.models.session import SessionRecord
 from app.models.user import UserRecord
 from app.services.attendance_service import (
+    build_weekly_attendance_summary,
     change_status,
     check_in,
     check_out,
@@ -118,6 +120,58 @@ def test_patch_session_validations_and_audit_log(tmp_path: Path) -> None:
     assert log.reason == "退勤漏れ修正"
 
 
+def test_weekly_attendance_summary_uses_jst_ranges_and_open_sessions(tmp_path: Path) -> None:
+    stores, admin, member, target = _setup_stores(tmp_path, include_target=True)
+    now = datetime(2026, 4, 15, 3, 0, tzinfo=timezone.utc)  # 2026-04-15 12:00 JST
+
+    _add_session(
+        stores,
+        "member-mon",
+        member.user_id,
+        datetime(2026, 4, 13, 0, 0, tzinfo=timezone.utc),
+        datetime(2026, 4, 13, 4, 0, tzinfo=timezone.utc),
+    )
+    _add_session(
+        stores,
+        "member-cross-day",
+        member.user_id,
+        datetime(2026, 4, 14, 14, 0, tzinfo=timezone.utc),
+        datetime(2026, 4, 14, 16, 0, tzinfo=timezone.utc),
+    )
+    _add_session(
+        stores,
+        "target-cross-week-start",
+        target.user_id,
+        datetime(2026, 4, 12, 14, 0, tzinfo=timezone.utc),
+        datetime(2026, 4, 12, 16, 0, tzinfo=timezone.utc),
+    )
+    _add_session(
+        stores,
+        "target-open",
+        target.user_id,
+        datetime(2026, 4, 15, 0, 0, tzinfo=timezone.utc),
+        None,
+    )
+    _add_session(
+        stores,
+        "ignored-before-week",
+        member.user_id,
+        datetime(2026, 4, 11, 0, 0, tzinfo=timezone.utc),
+        datetime(2026, 4, 11, 2, 0, tzinfo=timezone.utc),
+    )
+
+    summary = build_weekly_attendance_summary(stores, now=now)
+    by_user = {item.user_id: item for item in summary}
+
+    assert by_user[member.user_id].weekly_duration_sec == 6 * 60 * 60
+    assert by_user[member.user_id].today_duration_sec == 1 * 60 * 60
+    assert by_user[target.user_id].weekly_duration_sec == 4 * 60 * 60
+    assert by_user[target.user_id].today_duration_sec == 3 * 60 * 60
+    assert by_user[member.user_id].rank == 1
+    assert by_user[target.user_id].rank == 2
+    assert admin.user_id not in by_user
+
+
 def _setup_stores(tmp_path: Path, *, include_target: bool = False):
     db = SqliteDb(tmp_path / "local.db")
     stores = make_stores(tmp_path, sqlite_db=db)
@@ -166,6 +220,29 @@ def _create_user(
         )
     )
     return user
+
+
+def _add_session(
+    stores,
+    session_id: str,
+    user_id: str,
+    check_in_at: datetime,
+    check_out_at: datetime | None,
+) -> SessionRecord:
+    duration_sec = None
+    if check_out_at is not None:
+        duration_sec = int((check_out_at - check_in_at).total_seconds())
+    session_obj = SessionRecord(
+        id=session_id,
+        user_id=user_id,
+        check_in_at=check_in_at,
+        check_out_at=check_out_at,
+        duration_sec=duration_sec,
+        close_reason="manual_checkout" if check_out_at is not None else None,
+        created_at=check_in_at,
+        updated_at=check_out_at or check_in_at,
+    )
+    return stores.sessions.add(session_obj)
 
 
 def _audit_actions(stores, user_id: str) -> set[str]:

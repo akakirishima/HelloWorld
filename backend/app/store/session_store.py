@@ -136,6 +136,26 @@ class SessionStore:
         ).fetchall()
         return [_row_to_record(row) for row in rows]
 
+    def list_overlapping(
+        self,
+        start_at: datetime,
+        end_at: datetime,
+        *,
+        now: datetime,
+    ) -> list[SessionRecord]:
+        if self._sqlite is None:
+            return []
+        rows = self._sqlite.execute(
+            """
+            SELECT * FROM sessions
+            WHERE check_in_at < ?
+              AND COALESCE(check_out_at, ?) > ?
+            ORDER BY check_in_at ASC
+            """,
+            (end_at.isoformat(), now.isoformat(), start_at.isoformat()),
+        ).fetchall()
+        return [_row_to_record(row) for row in rows]
+
     def get_open_session(self, user_id: str) -> SessionRecord | None:
         if self._sqlite is None:
             return None
