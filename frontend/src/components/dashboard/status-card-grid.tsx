@@ -1,5 +1,3 @@
-import type { CSSProperties } from "react";
-
 import type { DashboardMatrixRow } from "@/types/app";
 
 import { Crosshair, FlaskConical, GraduationCap, Home, School, Trophy } from "lucide-react";
@@ -62,7 +60,6 @@ export function StatusCardGrid({
         <StatusCard
           key={row.id}
           fillViewport={fillViewport}
-          rowCount={rowCount}
           disabledSections={disabledSections}
           onSectionSelect={onSectionSelect}
           row={row}
@@ -79,7 +76,6 @@ const HOLD_MS = 700;
 function StatusCard({
   row,
   fillViewport,
-  rowCount,
   disabledSections,
   onSectionSelect,
   isFeatured,
@@ -87,7 +83,6 @@ function StatusCard({
 }: {
   row: DashboardMatrixRow;
   fillViewport: boolean;
-  rowCount: number;
   disabledSections: SectionKey[];
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
   isFeatured: boolean;
@@ -106,10 +101,7 @@ function StatusCard({
 
   const activeSection =
     optimisticActive?.serverActive === serverActive ? optimisticActive.value : serverActive;
-  const nameStyle = buildNameStyle(row.name, fillViewport, rowCount);
-  const nameFontSize = getFontSizePx(nameStyle.fontSize);
   const theme = sectionThemes[activeSection];
-  const iconSizes = computeIconSizes(rowCount, fillViewport);
   const weeklyDurationLabel = `今週 ${formatDurationHours(row.weeklyDurationSec)}`;
 
   const getFillPct = (key: SectionKey): number => {
@@ -155,41 +147,59 @@ function StatusCard({
         theme.cardBorder,
         theme.cardBg,
       )}
+      style={fillViewport ? { containerType: "size" } : undefined}
     >
       <header
-        className={cn("border-b px-1 transition-colors duration-700", theme.headerBorder, theme.headerBg)}
-        style={fillViewport ? { paddingTop: iconSizes.headerPad, paddingBottom: iconSizes.headerPad } : { paddingTop: 14, paddingBottom: 14 }}
+        className={cn(
+          "grid min-h-0 shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)_minmax(0,1fr)] items-center border-b px-2 transition-colors duration-700",
+          theme.headerBorder,
+          theme.headerBg,
+          fillViewport ? "h-[43cqh] gap-[1cqw]" : "gap-2 py-3",
+        )}
       >
-        <div className="relative flex items-center justify-center px-2">
-          <span
-            className={cn("absolute left-2 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
-            style={{ fontSize: Math.max(16, nameFontSize * 1.2), opacity: row.checkInAt !== "未出勤" ? 0.85 : 0 }}
-          >
-            {row.checkInAt !== "未出勤" ? row.checkInAt : ""}
-          </span>
-          <div className="min-w-0 max-w-[62%] text-center">
+        <span
+          className={cn(
+            "min-w-0 font-mono font-bold tabular-nums transition-colors duration-700",
+            theme.nameText,
+            fillViewport ? "text-[clamp(11px,16cqh,38px)]" : "text-base",
+          )}
+          style={{ opacity: row.checkInAt !== "未出勤" ? 0.85 : 0 }}
+        >
+          {row.checkInAt !== "未出勤" ? row.checkInAt : ""}
+        </span>
+        <div className="min-w-0 text-center">
             <p
-              className={cn("truncate font-semibold transition-colors duration-700", theme.nameText)}
-              style={nameStyle}
+              className={cn(
+                "truncate font-semibold leading-none transition-colors duration-700",
+                theme.nameText,
+                fillViewport ? "text-[clamp(15px,18cqh,46px)]" : "text-2xl",
+              )}
               title={row.name}
             >
               {row.name}
             </p>
             <p
-              className={cn("mt-0.5 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
-              style={{ fontSize: Math.max(12, nameFontSize * 0.36), lineHeight: 1.1, opacity: 0.78 }}
+              className={cn(
+                "mt-[2cqh] truncate font-mono font-bold leading-none tabular-nums transition-colors duration-700",
+                theme.nameText,
+                fillViewport ? "text-[clamp(9px,7cqh,20px)]" : "text-xs",
+              )}
+              style={{ opacity: 0.78 }}
               title={weeklyDurationLabel}
             >
               {weeklyDurationLabel}
             </p>
-          </div>
-          <span
-            className={cn("absolute right-2 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
-            style={{ fontSize: Math.max(16, nameFontSize * 1.2), opacity: row.checkOutAt ? 0.85 : 0 }}
-          >
-            {row.checkOutAt ?? ""}
-          </span>
         </div>
+        <span
+          className={cn(
+            "min-w-0 text-right font-mono font-bold tabular-nums transition-colors duration-700",
+            theme.nameText,
+            fillViewport ? "text-[clamp(11px,16cqh,38px)]" : "text-base",
+          )}
+          style={{ opacity: row.checkOutAt ? 0.85 : 0 }}
+        >
+          {row.checkOutAt ?? ""}
+        </span>
       </header>
 
       <div className={cn("grid grid-cols-4 divide-x transition-colors duration-700", theme.sectionsDivide, theme.sectionsBg, fillViewport ? "flex-1 min-h-0" : "")} style={{ transitionDelay: "0ms" }}>
@@ -200,7 +210,6 @@ function StatusCard({
             noTransition={pressing !== null && (section.key === pressing || section.key === activeSection)}
             disabled={disabledSections.includes(section.key)}
             fillViewport={fillViewport}
-            iconSizes={iconSizes}
             label={section.label}
             sectionKey={section.key}
             onPressStart={(startTime) => handlePressStart(section.key, startTime)}
@@ -234,59 +243,8 @@ function StatusCard({
   );
 }
 
-type IconSizes = {
-  circleSize: number;
-  iconInCircle: number;
-  iconBare: number;
-  fontSize: number;
-  sectionPad: number;
-  headerPad: number;
-};
-
-function computeIconSizes(rowCount: number, fillViewport: boolean): IconSizes {
-  if (!fillViewport) {
-    return { circleSize: 32, iconInCircle: 16, iconBare: 20, fontSize: 11, sectionPad: 10, headerPad: 14 };
-  }
-  const scale = Math.max(0.65, Math.min(1.8, 6 / rowCount));
-  return {
-    circleSize: Math.round(80 * scale),
-    iconInCircle: Math.round(42 * scale),
-    iconBare: Math.round(58 * scale),
-    fontSize: Math.max(16, Math.round(24 * scale)),
-    sectionPad: Math.max(4, Math.round(10 * scale)),
-    headerPad: Math.max(6, Math.round(12 * scale)),
-  };
-}
-
-function buildNameStyle(name: string, fillViewport: boolean, rowCount = 6): CSSProperties {
-  const length = name.length;
-  const baseFontSize = Math.max(20, Math.min(46, 48 - Math.max(0, length - 10) * 0.9));
-  const scale = fillViewport ? Math.max(0.65, Math.min(1.8, 6 / rowCount)) : 1;
-  const fontSize = baseFontSize * (fillViewport ? scale : 1);
-
-  return {
-    fontSize: `${Math.max(18, fontSize)}px`,
-    lineHeight: 1.12,
-  };
-}
-
 function formatDurationHours(durationSec: number): string {
   return `${(Math.max(0, durationSec) / 3600).toFixed(1)}h`;
-}
-
-function getFontSizePx(fontSize: CSSProperties["fontSize"]): number {
-  if (typeof fontSize === "number") {
-    return fontSize;
-  }
-
-  if (typeof fontSize === "string") {
-    const parsed = Number.parseFloat(fontSize);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-
-  return 18;
 }
 
 function StatusSection({
@@ -296,7 +254,6 @@ function StatusSection({
   label,
   sectionKey,
   fillViewport,
-  iconSizes,
   onPressStart,
   onPressEnd,
 }: {
@@ -306,7 +263,6 @@ function StatusSection({
   label: string;
   sectionKey: SectionKey;
   fillViewport: boolean;
-  iconSizes: IconSizes;
   onPressStart: (startTime: number) => void;
   onPressEnd: () => void;
 }) {
@@ -324,7 +280,7 @@ function StatusSection({
       )}
       style={
         fillViewport
-          ? { paddingTop: iconSizes.sectionPad, paddingBottom: iconSizes.sectionPad }
+          ? { paddingTop: "2cqh", paddingBottom: "2cqh" }
           : { minHeight: 84, paddingTop: 10, paddingBottom: 10 }
       }
       onPointerDown={(event) => onPressStart(event.timeStamp)}
@@ -343,19 +299,19 @@ function StatusSection({
 
       <Icon
         className={cn(
-          "relative z-10 transition-colors duration-150",
+          "relative z-10 shrink-0 transition-colors duration-150",
           lit ? theme.textActive : theme.iconInactiveText,
+          fillViewport ? "h-[clamp(14px,18cqh,58px)] w-[clamp(14px,18cqh,58px)]" : "h-5 w-5",
         )}
-        style={{ width: iconSizes.iconBare, height: iconSizes.iconBare }}
         strokeWidth={2}
         aria-hidden="true"
       />
       <span
         className={cn(
-          "relative z-10 font-semibold capitalize tracking-[0.01em] transition-colors duration-150",
+          "relative z-10 whitespace-nowrap font-semibold capitalize leading-none tracking-[0.01em] transition-colors duration-150",
           lit ? theme.textActive : theme.textInactive,
+          fillViewport ? "text-[clamp(9px,9cqh,24px)]" : "text-[11px]",
         )}
-        style={{ fontSize: iconSizes.fontSize, lineHeight: 1.1 }}
       >
         {label}
       </span>
