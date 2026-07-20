@@ -423,20 +423,6 @@ export function getActiveRooms(rooms: RoomItem[]): RoomItem[] {
 
 export function sortDashboardRows(rows: DashboardMatrixRow[]): DashboardMatrixRow[] {
   return [...rows].sort((left, right) => {
-    const leftRank = left.weeklyRank ?? Number.POSITIVE_INFINITY;
-    const rightRank = right.weeklyRank ?? Number.POSITIVE_INFINITY;
-    const rankDiff = leftRank - rightRank;
-
-    if (rankDiff !== 0) {
-      return rankDiff;
-    }
-
-    const weeklyDiff = right.weeklyDurationSec - left.weeklyDurationSec;
-
-    if (weeklyDiff !== 0) {
-      return weeklyDiff;
-    }
-
     const gradeDiff =
       academicGradeOrder.indexOf(left.academicGrade) - academicGradeOrder.indexOf(right.academicGrade);
 

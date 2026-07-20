@@ -1,8 +1,7 @@
 import type { DashboardMatrixRow } from "@/types/app";
 
-import { Crosshair, FlaskConical, GraduationCap, Home, School, Trophy } from "lucide-react";
-import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { FlaskConical, GraduationCap, Home, School, Trophy } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -10,6 +9,7 @@ type StatusCardGridProps = {
   rows: DashboardMatrixRow[];
   className?: string;
   fillViewport?: boolean;
+  showAds?: boolean;
   disabledSections?: SectionKey[];
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
 };
@@ -34,11 +34,12 @@ export function StatusCardGrid({
   rows,
   className,
   fillViewport = false,
+  showAds = false,
   disabledSections = [],
   onSectionSelect,
 }: StatusCardGridProps) {
-  const hasFeaturedRank = rows.some((row) => row.weeklyRank === 1);
-  const rowCount = Math.max(1, Math.ceil((rows.length + (hasFeaturedRank ? 3 : 0)) / 2));
+  const memberRowCount = Math.max(1, Math.ceil(rows.length / 2));
+  const rowCount = memberRowCount + (showAds ? 2 : 0);
 
   return (
     <div
@@ -56,7 +57,7 @@ export function StatusCardGrid({
           : undefined
       }
     >
-      {rows.map((row, index) => (
+      {rows.map((row) => (
         <StatusCard
           key={row.id}
           fillViewport={fillViewport}
@@ -64,10 +65,93 @@ export function StatusCardGrid({
           onSectionSelect={onSectionSelect}
           row={row}
           isFeatured={row.weeklyRank === 1}
-          isLast={index === rows.length - 1}
         />
       ))}
+      {showAds ? <BoardAdCarousel /> : null}
     </div>
+  );
+}
+
+const placeholderAds = [
+  { id: "red", label: "広告 1", className: "bg-red-500 text-white" },
+  { id: "blue", label: "広告 2", className: "bg-blue-600 text-white" },
+  { id: "yellow", label: "広告 3", className: "bg-yellow-300 text-slate-950" },
+] as const;
+
+const AD_DISPLAY_MS = 5000;
+
+function BoardAdCarousel() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [transitionEnabled, setTransitionEnabled] = useState(true);
+  const resetFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentIndex((index) => index + 1);
+    }, AD_DISPLAY_MS);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (resetFrameRef.current !== null) {
+        window.cancelAnimationFrame(resetFrameRef.current);
+      }
+    };
+  }, []);
+
+  const handleTransitionEnd = () => {
+    if (currentIndex !== placeholderAds.length) {
+      return;
+    }
+
+    setTransitionEnabled(false);
+    setCurrentIndex(0);
+    resetFrameRef.current = window.requestAnimationFrame(() => {
+      resetFrameRef.current = window.requestAnimationFrame(() => {
+        setTransitionEnabled(true);
+        resetFrameRef.current = null;
+      });
+    });
+  };
+
+  const slides = [...placeholderAds, placeholderAds[0]];
+  const activeAd = placeholderAds[currentIndex % placeholderAds.length];
+
+  return (
+    <aside
+      aria-label="広告枠"
+      className="relative col-span-2 col-start-1 row-span-2 min-h-0 overflow-hidden rounded-[20px] border-2 border-dashed border-slate-400 bg-white shadow-soft"
+      data-active-ad={activeAd.id}
+      data-testid="board-ad-carousel"
+      style={{ containerType: "size" }}
+    >
+      <div className="pointer-events-none absolute left-[2cqw] top-[2cqh] z-10 rounded-full border border-white/70 bg-slate-950/65 px-[2cqw] py-[1cqh] text-[clamp(10px,7cqh,18px)] font-bold tracking-[0.12em] text-white backdrop-blur-sm">
+        広告枠
+      </div>
+      <div
+        aria-live="off"
+        className="flex h-full"
+        onTransitionEnd={handleTransitionEnd}
+        style={{
+          transform: `translateX(-${currentIndex * 100}%)`,
+          transition: transitionEnabled ? "transform 600ms ease-in-out" : "none",
+        }}
+      >
+        {slides.map((ad, index) => (
+          <div
+            key={`${ad.id}-${index}`}
+            aria-hidden={index !== currentIndex}
+            className={`flex h-full w-full shrink-0 items-center justify-center ${ad.className}`}
+          >
+            <span className="text-[clamp(28px,30cqh,96px)] font-black tracking-[0.08em]">
+              {ad.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </aside>
   );
 }
 
@@ -79,16 +163,13 @@ function StatusCard({
   disabledSections,
   onSectionSelect,
   isFeatured,
-  isLast,
 }: {
   row: DashboardMatrixRow;
   fillViewport: boolean;
   disabledSections: SectionKey[];
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
   isFeatured: boolean;
-  isLast: boolean;
 }) {
-  const navigate = useNavigate();
   const serverActive = mapRowToSection(row);
   const [optimisticActive, setOptimisticActive] = useState<{
     serverActive: SectionKey;
@@ -143,7 +224,7 @@ function StatusCard({
       className={cn(
         "relative min-w-0 overflow-hidden rounded-[20px] border-2 shadow-soft transition-colors duration-700",
         fillViewport ? "flex h-full flex-col" : "",
-        isFeatured && "col-span-2 row-span-2 ring-4 ring-amber-300/80",
+        isFeatured && "ring-2 ring-amber-300/80",
         theme.cardBorder,
         theme.cardBg,
       )}
@@ -217,21 +298,6 @@ function StatusCard({
           />
         ))}
       </div>
-
-      {isLast && (
-        <button
-          type="button"
-          className="absolute bottom-2 right-2 z-20 rounded-full p-2 opacity-20 transition-opacity active:opacity-80"
-          onClick={() => navigate("/demo/calibration")}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <Crosshair
-            className={cn("transition-colors duration-700", theme.nameText)}
-            size={18}
-            strokeWidth={1.5}
-          />
-        </button>
-      )}
 
       {isFeatured && (
         <div className="pointer-events-none absolute bottom-2 left-2 z-20 flex items-center gap-1 rounded-full border border-amber-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-amber-800 shadow-sm">

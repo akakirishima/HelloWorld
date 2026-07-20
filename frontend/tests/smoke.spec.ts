@@ -19,6 +19,7 @@ test("管理者で主要画面と board 専用ページを表示できる", asyn
 
   await page.getByRole("button", { name: /^E710$/ }).click();
   await expect(page.getByTestId("status-card-grid")).toBeVisible();
+  await expect(page.getByTestId("board-ad-carousel")).toHaveCount(0);
   expect(await page.locator("[data-testid='status-card-grid'] article").count()).toBeGreaterThan(0);
   await expect(page.getByText("Shimizu Yuichiro", { exact: false }).first()).toBeVisible();
   await expect(page.getByText("Lab", { exact: true }).first()).toBeVisible();
@@ -41,6 +42,9 @@ test("管理者で主要画面と board 専用ページを表示できる", asyn
   await expect(boardPage.getByText("情報処理研究室", { exact: true })).toHaveCount(0);
   await expect(boardPage.getByText("研究室全体", { exact: true })).toHaveCount(0);
   await expect(boardPage.getByTestId("status-card-grid")).toBeVisible();
+  await expect(boardPage.getByTestId("board-ad-carousel")).toBeVisible();
+  await expect(boardPage.getByText("広告枠", { exact: true })).toBeVisible();
+  await expect(boardPage.getByTestId("board-ad-carousel")).toHaveAttribute("data-active-ad", "red");
   await expect(boardPage.getByText("高橋 未来", { exact: false }).first()).toBeVisible();
   await expect(boardPage.getByText("長谷川 澪", { exact: false }).first()).toBeVisible();
   await expect(boardPage.getByText("中村 彩", { exact: false }).first()).toBeVisible();

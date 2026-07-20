@@ -1,4 +1,5 @@
-import { Navigate } from "react-router-dom";
+import { Crosshair } from "lucide-react";
+import { Link, Navigate } from "react-router-dom";
 
 import { StatusCardGrid } from "@/components/dashboard/status-card-grid";
 import { useAuth } from "@/features/auth/auth-context";
@@ -51,6 +52,7 @@ export function DashboardBoardPage() {
         <StatusCardGrid
           className="h-full w-full"
           fillViewport
+          showAds
           disabledSections={user.role !== "admin" ? ["lab", "onCampus", "class", "home"] : []}
           onSectionSelect={user.role === "admin" ? (rowId, section) => {
             if (section === "lab") {
@@ -63,6 +65,13 @@ export function DashboardBoardPage() {
           } : undefined}
           rows={visibleRows}
         />
+        <Link
+          aria-label="タッチ位置を調整"
+          className="absolute bottom-2 right-2 z-40 rounded-full border border-slate-300/80 bg-white/85 p-2.5 text-slate-700 opacity-35 shadow-md backdrop-blur-sm transition hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-sky-400 active:scale-95 active:opacity-100"
+          to="/demo/calibration"
+        >
+          <Crosshair aria-hidden="true" size={20} strokeWidth={1.7} />
+        </Link>
       </div>
     </div>
   );
