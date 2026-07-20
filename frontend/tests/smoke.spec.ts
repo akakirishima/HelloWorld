@@ -43,8 +43,10 @@ test("管理者で主要画面と board 専用ページを表示できる", asyn
   await expect(boardPage.getByText("研究室全体", { exact: true })).toHaveCount(0);
   await expect(boardPage.getByTestId("status-card-grid")).toBeVisible();
   await expect(boardPage.getByTestId("board-ad-carousel")).toBeVisible();
-  await expect(boardPage.getByText("広告枠", { exact: true })).toBeVisible();
-  await expect(boardPage.getByTestId("board-ad-carousel")).toHaveAttribute("data-active-ad", "red");
+  await expect(boardPage.getByTestId("board-ad-carousel")).toHaveAttribute(
+    "data-active-ad",
+    "research-overview",
+  );
   await expect(boardPage.getByText("高橋 未来", { exact: false }).first()).toBeVisible();
   await expect(boardPage.getByText("長谷川 澪", { exact: false }).first()).toBeVisible();
   await expect(boardPage.getByText("中村 彩", { exact: false }).first()).toBeVisible();

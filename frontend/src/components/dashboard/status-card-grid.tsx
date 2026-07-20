@@ -72,10 +72,27 @@ export function StatusCardGrid({
   );
 }
 
-const placeholderAds = [
-  { id: "red", label: "広告 1", className: "bg-red-500 text-white" },
-  { id: "blue", label: "広告 2", className: "bg-blue-600 text-white" },
-  { id: "yellow", label: "広告 3", className: "bg-yellow-300 text-slate-950" },
+const boardAds = [
+  {
+    id: "research-overview",
+    src: "/ads/research-overview.png",
+    alt: "AIで世界の動きを読み解く研究紹介",
+  },
+  {
+    id: "infant-motion",
+    src: "/ads/infant-motion.png",
+    alt: "新生児の運動解析研究紹介",
+  },
+  {
+    id: "baseball-motion",
+    src: "/ads/baseball-motion.png",
+    alt: "野球の投球動作解析研究紹介",
+  },
+  {
+    id: "cattle-motion",
+    src: "/ads/cattle-motion.png",
+    alt: "牛の行動解析研究紹介",
+  },
 ] as const;
 
 const AD_DISPLAY_MS = 5000;
@@ -102,7 +119,7 @@ function BoardAdCarousel() {
   }, []);
 
   const handleTransitionEnd = () => {
-    if (currentIndex !== placeholderAds.length) {
+    if (currentIndex !== boardAds.length) {
       return;
     }
 
@@ -116,20 +133,16 @@ function BoardAdCarousel() {
     });
   };
 
-  const slides = [...placeholderAds, placeholderAds[0]];
-  const activeAd = placeholderAds[currentIndex % placeholderAds.length];
+  const slides = [...boardAds, boardAds[0]];
+  const activeAd = boardAds[currentIndex % boardAds.length];
 
   return (
     <aside
       aria-label="広告枠"
-      className="relative col-span-2 col-start-1 row-span-2 min-h-0 overflow-hidden rounded-[20px] border-2 border-dashed border-slate-400 bg-white shadow-soft"
+      className="relative col-span-2 col-start-1 row-span-2 min-h-0 overflow-hidden"
       data-active-ad={activeAd.id}
       data-testid="board-ad-carousel"
-      style={{ containerType: "size" }}
     >
-      <div className="pointer-events-none absolute left-[2cqw] top-[2cqh] z-10 rounded-full border border-white/70 bg-slate-950/65 px-[2cqw] py-[1cqh] text-[clamp(10px,7cqh,18px)] font-bold tracking-[0.12em] text-white backdrop-blur-sm">
-        広告枠
-      </div>
       <div
         aria-live="off"
         className="flex h-full"
@@ -143,11 +156,14 @@ function BoardAdCarousel() {
           <div
             key={`${ad.id}-${index}`}
             aria-hidden={index !== currentIndex}
-            className={`flex h-full w-full shrink-0 items-center justify-center ${ad.className}`}
+            className="h-full w-full shrink-0"
           >
-            <span className="text-[clamp(28px,30cqh,96px)] font-black tracking-[0.08em]">
-              {ad.label}
-            </span>
+            <img
+              alt={ad.alt}
+              className="h-full w-full object-contain"
+              draggable={false}
+              src={ad.src}
+            />
           </div>
         ))}
       </div>
