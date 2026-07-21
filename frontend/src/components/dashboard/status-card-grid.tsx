@@ -100,42 +100,15 @@ const AD_DISPLAY_MS = 5000;
 
 function BoardAdCarousel() {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [transitionEnabled, setTransitionEnabled] = useState(true);
-  const resetFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setCurrentIndex((index) => index + 1);
+      setCurrentIndex((index) => (index + 1) % boardAds.length);
     }, AD_DISPLAY_MS);
-
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (resetFrameRef.current !== null) {
-        window.cancelAnimationFrame(resetFrameRef.current);
-      }
-    };
-  }, []);
-
-  const handleTransitionEnd = () => {
-    if (currentIndex !== boardAds.length) {
-      return;
-    }
-
-    setTransitionEnabled(false);
-    setCurrentIndex(0);
-    resetFrameRef.current = window.requestAnimationFrame(() => {
-      resetFrameRef.current = window.requestAnimationFrame(() => {
-        setTransitionEnabled(true);
-        resetFrameRef.current = null;
-      });
-    });
-  };
-
-  const slides = [...boardAds, boardAds[0]];
-  const activeAd = boardAds[currentIndex % boardAds.length];
+  const activeAd = boardAds[currentIndex];
 
   return (
     <aside
@@ -144,30 +117,15 @@ function BoardAdCarousel() {
       data-active-ad={activeAd.id}
       data-testid="board-ad-carousel"
     >
-      <div
-        aria-live="off"
-        className="flex h-full"
-        onTransitionEnd={handleTransitionEnd}
-        style={{
-          transform: `translateX(-${currentIndex * 100}%)`,
-          transition: transitionEnabled ? "transform 600ms ease-in-out" : "none",
-        }}
-      >
-        {slides.map((ad, index) => (
-          <div
-            key={`${ad.id}-${index}`}
-            aria-hidden={index !== currentIndex}
-            className="h-full w-full shrink-0"
-          >
-            <img
-              alt={ad.alt}
-              className="h-full w-full object-contain"
-              draggable={false}
-              src={ad.src}
-            />
-          </div>
-        ))}
-      </div>
+      <img
+        key={activeAd.id}
+        alt={activeAd.alt}
+        className="h-full w-full object-contain"
+        draggable={false}
+        src={activeAd.src}
+        loading="lazy"
+        decoding="async"
+      />
     </aside>
   );
 }
