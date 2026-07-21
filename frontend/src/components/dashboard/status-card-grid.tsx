@@ -96,7 +96,7 @@ const boardAds = [
   },
 ] as const;
 
-const AD_DISPLAY_MS = 5000;
+const AD_DISPLAY_MS = 15000;
 
 function BoardAdCarousel() {
   const [currentIndex, setCurrentIndex] = useState(0);
