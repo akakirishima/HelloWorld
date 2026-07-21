@@ -1,17 +1,18 @@
-import type { CSSProperties } from "react";
-
 import type { DashboardMatrixRow } from "@/types/app";
 
-import { Crosshair, FlaskConical, GraduationCap, Home, School, Trophy } from "lucide-react";
-import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { FlaskConical, GraduationCap, Home, School } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
+import { SparklesLayer } from "@/components/magicui/sparkles-text";
 import { cn } from "@/lib/utils";
+
+const OPTIMISTIC_TTL_MS = 5000;
 
 type StatusCardGridProps = {
   rows: DashboardMatrixRow[];
   className?: string;
   fillViewport?: boolean;
+  showAds?: boolean;
   disabledSections?: SectionKey[];
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
 };
@@ -36,11 +37,12 @@ export function StatusCardGrid({
   rows,
   className,
   fillViewport = false,
+  showAds = false,
   disabledSections = [],
   onSectionSelect,
 }: StatusCardGridProps) {
-  const hasFeaturedRank = rows.some((row) => row.weeklyRank === 1);
-  const rowCount = Math.max(1, Math.ceil((rows.length + (hasFeaturedRank ? 3 : 0)) / 2));
+  const memberRowCount = Math.max(1, Math.ceil(rows.length / 2));
+  const rowCount = memberRowCount + (showAds ? 1 : 0);
 
   return (
     <div
@@ -58,19 +60,116 @@ export function StatusCardGrid({
           : undefined
       }
     >
-      {rows.map((row, index) => (
+      {rows.map((row) => (
         <StatusCard
           key={row.id}
           fillViewport={fillViewport}
-          rowCount={rowCount}
           disabledSections={disabledSections}
           onSectionSelect={onSectionSelect}
           row={row}
-          isFeatured={row.weeklyRank === 1}
-          isLast={index === rows.length - 1}
         />
       ))}
+      {showAds ? <BoardAdCarousel /> : null}
     </div>
+  );
+}
+
+const boardAds = [
+  {
+    id: "research-overview",
+    src: "/ads/research-overview.png",
+    alt: "AIで世界の動きを読み解く研究紹介",
+  },
+  {
+    id: "infant-motion",
+    src: "/ads/infant-motion.png",
+    alt: "新生児の運動解析研究紹介",
+  },
+  {
+    id: "baseball-motion",
+    src: "/ads/baseball-motion.png",
+    alt: "野球の投球動作解析研究紹介",
+  },
+  {
+    id: "cattle-motion",
+    src: "/ads/cattle-motion.png",
+    alt: "牛の行動解析研究紹介",
+  },
+] as const;
+
+const AD_DISPLAY_MS = 5000;
+
+function BoardAdCarousel() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [transitionEnabled, setTransitionEnabled] = useState(true);
+  const resetFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentIndex((index) => index + 1);
+    }, AD_DISPLAY_MS);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (resetFrameRef.current !== null) {
+        window.cancelAnimationFrame(resetFrameRef.current);
+      }
+    };
+  }, []);
+
+  const handleTransitionEnd = () => {
+    if (currentIndex !== boardAds.length) {
+      return;
+    }
+
+    setTransitionEnabled(false);
+    setCurrentIndex(0);
+    resetFrameRef.current = window.requestAnimationFrame(() => {
+      resetFrameRef.current = window.requestAnimationFrame(() => {
+        setTransitionEnabled(true);
+        resetFrameRef.current = null;
+      });
+    });
+  };
+
+  const slides = [...boardAds, boardAds[0]];
+  const activeAd = boardAds[currentIndex % boardAds.length];
+
+  return (
+    <aside
+      aria-label="広告枠"
+      className="relative col-span-2 col-start-1 min-h-0 overflow-hidden"
+      data-active-ad={activeAd.id}
+      data-testid="board-ad-carousel"
+    >
+      <div
+        aria-live="off"
+        className="flex h-full"
+        onTransitionEnd={handleTransitionEnd}
+        style={{
+          transform: `translateX(-${currentIndex * 100}%)`,
+          transition: transitionEnabled ? "transform 600ms ease-in-out" : "none",
+        }}
+      >
+        {slides.map((ad, index) => (
+          <div
+            key={`${ad.id}-${index}`}
+            aria-hidden={index !== currentIndex}
+            className="h-full w-full shrink-0"
+          >
+            <img
+              alt={ad.alt}
+              className="h-full w-full object-contain"
+              draggable={false}
+              src={ad.src}
+            />
+          </div>
+        ))}
+      </div>
+    </aside>
   );
 }
 
@@ -79,38 +178,32 @@ const HOLD_MS = 700;
 function StatusCard({
   row,
   fillViewport,
-  rowCount,
   disabledSections,
   onSectionSelect,
-  isFeatured,
-  isLast,
 }: {
   row: DashboardMatrixRow;
   fillViewport: boolean;
-  rowCount: number;
   disabledSections: SectionKey[];
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
-  isFeatured: boolean;
-  isLast: boolean;
 }) {
-  const navigate = useNavigate();
   const serverActive = mapRowToSection(row);
-  const [optimisticActive, setOptimisticActive] = useState<{
-    serverActive: SectionKey;
-    value: SectionKey;
-  } | null>(null);
+  const [optimisticActive, setOptimisticActive] = useState<SectionKey | null>(null);
   const [pressing, setPressing] = useState<SectionKey | null>(null);
   const [progress, setProgress] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
 
-  const activeSection =
-    optimisticActive?.serverActive === serverActive ? optimisticActive.value : serverActive;
-  const nameStyle = buildNameStyle(row.name, fillViewport, rowCount);
-  const nameFontSize = getFontSizePx(nameStyle.fontSize);
+  const activeSection = optimisticActive ?? serverActive;
   const theme = sectionThemes[activeSection];
-  const iconSizes = computeIconSizes(rowCount, fillViewport);
-  const weeklyDurationLabel = `今週 ${formatDurationHours(row.weeklyDurationSec)}`;
+
+  /* 最新のユーザー意図を TTL の間だけ守る。
+     サーバが opt.value に追いつけば表示は同じなのでそのまま同居し、TTL 後に自然消失。
+     サーバが別値でも TTL 内はユーザー意図優先（連続押しの先着 refresh に破壊されない）。 */
+  useEffect(() => {
+    if (optimisticActive === null) return;
+    const timeout = window.setTimeout(() => setOptimisticActive(null), OPTIMISTIC_TTL_MS);
+    return () => window.clearTimeout(timeout);
+  }, [optimisticActive]);
 
   const getFillPct = (key: SectionKey): number => {
     if (pressing && pressing !== activeSection) {
@@ -124,6 +217,7 @@ function StatusCard({
   const handlePressStart = (section: SectionKey, startTime: number) => {
     if (disabledSections.includes(section)) return;
     if (section === activeSection) return;
+    if (timerRef.current) clearInterval(timerRef.current); // 前のタイマー残骸を防御的に破棄
     setPressing(section);
     setProgress(0);
     startTimeRef.current = startTime;
@@ -132,7 +226,8 @@ function StatusCard({
       setProgress(p);
       if (p >= 1) {
         clearInterval(timerRef.current!);
-        setOptimisticActive({ serverActive, value: section });
+        timerRef.current = null;
+        setOptimisticActive(section);
         setPressing(null);
         setProgress(0);
         void onSectionSelect?.(row.id, section);
@@ -146,50 +241,94 @@ function StatusCard({
     setProgress(0);
   };
 
+  const rankGlow =
+    row.weeklyRank === 1
+      ? "rank-glow-gold"
+      : row.weeklyRank === 2
+      ? "rank-glow-silver"
+      : row.weeklyRank === 3
+      ? "rank-glow-bronze"
+      : "";
+
+  const sparkleColors =
+    row.weeklyRank === 1
+      ? { first: "#fef08a", second: "#fbbf24" }
+      : row.weeklyRank === 2
+      ? { first: "#cbd5e1", second: "#64748b" }
+      : row.weeklyRank === 3
+      ? { first: "#fed7aa", second: "#c2410c" }
+      : null;
+
   return (
     <article
       className={cn(
         "relative min-w-0 overflow-hidden rounded-[20px] border-2 shadow-soft transition-colors duration-700",
         fillViewport ? "flex h-full flex-col" : "",
-        isFeatured && "col-span-2 row-span-2 ring-4 ring-amber-300/80",
+        rankGlow,
+        pressing && "rank-animations-paused",
         theme.cardBorder,
         theme.cardBg,
       )}
+      style={fillViewport ? { containerType: "size" } : undefined}
     >
+      {sparkleColors ? (
+        <SparklesLayer
+          colors={sparkleColors}
+          sparklesCount={4}
+          starSize={fillViewport ? 9 : 11}
+          className="z-20 opacity-70"
+        />
+      ) : null}
+
+      {/* ── 上部エリア ── */}
       <header
-        className={cn("border-b px-1 transition-colors duration-700", theme.headerBorder, theme.headerBg)}
-        style={fillViewport ? { paddingTop: iconSizes.headerPad, paddingBottom: iconSizes.headerPad } : { paddingTop: 14, paddingBottom: 14 }}
+        className={cn(
+          "flex shrink-0 flex-col border-b px-3 transition-colors duration-700",
+          theme.headerBorder,
+          theme.headerBg,
+          fillViewport ? "h-[55cqh] py-[2cqh]" : "py-3",
+        )}
       >
-        <div className="relative flex items-center justify-center px-2">
+        {/* 行1: 時刻(左) + 名前(中央) + 時刻(右) — 左右スロット幅は固定して名前を常に真ん中に */}
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-baseline gap-1">
           <span
-            className={cn("absolute left-2 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
-            style={{ fontSize: Math.max(16, nameFontSize * 1.2), opacity: row.checkInAt !== "未出勤" ? 0.85 : 0 }}
+            className={cn(
+              "min-w-0 truncate text-left font-mono font-bold tabular-nums transition-colors duration-700",
+              theme.nameText,
+              fillViewport ? "text-[clamp(13px,9cqh,22px)]" : "text-base",
+            )}
+            style={{ opacity: row.checkInAt !== "未出勤" ? 0.9 : 0 }}
           >
             {row.checkInAt !== "未出勤" ? row.checkInAt : ""}
           </span>
-          <div className="min-w-0 max-w-[62%] text-center">
-            <p
-              className={cn("truncate font-semibold transition-colors duration-700", theme.nameText)}
-              style={nameStyle}
-              title={row.name}
-            >
-              {row.name}
-            </p>
-            <p
-              className={cn("mt-0.5 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
-              style={{ fontSize: Math.max(12, nameFontSize * 0.36), lineHeight: 1.1, opacity: 0.78 }}
-              title={weeklyDurationLabel}
-            >
-              {weeklyDurationLabel}
-            </p>
-          </div>
+          <p
+            className={cn(
+              "min-w-0 truncate text-center font-semibold leading-tight transition-colors duration-700",
+              theme.nameText,
+              fillViewport ? "text-[clamp(12px,12cqh,36px)]" : "text-xl sm:text-2xl",
+            )}
+            title={row.name}
+          >
+            {row.name}
+          </p>
           <span
-            className={cn("absolute right-2 font-mono font-bold tabular-nums transition-colors duration-700", theme.nameText)}
-            style={{ fontSize: Math.max(16, nameFontSize * 1.2), opacity: row.checkOutAt ? 0.85 : 0 }}
+            className={cn(
+              "min-w-0 truncate text-right font-mono font-bold tabular-nums transition-colors duration-700",
+              theme.nameText,
+              fillViewport ? "text-[clamp(13px,9cqh,22px)]" : "text-base",
+            )}
+            style={{ opacity: row.checkOutAt ? 0.9 : 0 }}
           >
             {row.checkOutAt ?? ""}
           </span>
         </div>
+
+        {/* 行2: 曜日別滞在時間グリッド */}
+        <DailyDurationsGrid
+          dailyDurationsSec={row.dailyDurationsSec}
+          fillViewport={fillViewport}
+          nameTextClass={theme.nameText}
+        />
       </header>
 
       <div className={cn("grid grid-cols-4 divide-x transition-colors duration-700", theme.sectionsDivide, theme.sectionsBg, fillViewport ? "flex-1 min-h-0" : "")} style={{ transitionDelay: "0ms" }}>
@@ -200,93 +339,91 @@ function StatusCard({
             noTransition={pressing !== null && (section.key === pressing || section.key === activeSection)}
             disabled={disabledSections.includes(section.key)}
             fillViewport={fillViewport}
-            iconSizes={iconSizes}
             label={section.label}
             sectionKey={section.key}
+            cardInactiveIconClass={theme.iconInactiveText}
+            cardInactiveTextClass={theme.textInactive}
             onPressStart={(startTime) => handlePressStart(section.key, startTime)}
             onPressEnd={handlePressEnd}
           />
         ))}
       </div>
 
-      {isLast && (
-        <button
-          type="button"
-          className="absolute bottom-2 right-2 z-20 rounded-full p-2 opacity-20 transition-opacity active:opacity-80"
-          onClick={() => navigate("/demo/calibration")}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <Crosshair
-            className={cn("transition-colors duration-700", theme.nameText)}
-            size={18}
-            strokeWidth={1.5}
-          />
-        </button>
-      )}
-
-      {isFeatured && (
-        <div className="pointer-events-none absolute bottom-2 left-2 z-20 flex items-center gap-1 rounded-full border border-amber-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-amber-800 shadow-sm">
-          <Trophy size={14} strokeWidth={2.2} aria-hidden="true" />
-          <span>Weekly #1</span>
-        </div>
-      )}
     </article>
   );
 }
 
-type IconSizes = {
-  circleSize: number;
-  iconInCircle: number;
-  iconBare: number;
-  fontSize: number;
-  sectionPad: number;
-  headerPad: number;
-};
+/** 秒を「4h」「4.5h」形式に変換。整数なら小数なし。 */
+function formatDailyHours(sec: number): string {
+  const hours = Math.max(0, sec) / 3600;
+  return Number.isInteger(hours) ? `${hours}h` : `${parseFloat(hours.toFixed(1))}h`;
+}
 
-function computeIconSizes(rowCount: number, fillViewport: boolean): IconSizes {
-  if (!fillViewport) {
-    return { circleSize: 32, iconInCircle: 16, iconBare: 20, fontSize: 11, sectionPad: 10, headerPad: 14 };
-  }
-  const scale = Math.max(0.65, Math.min(1.8, 6 / rowCount));
-  return {
-    circleSize: Math.round(80 * scale),
-    iconInCircle: Math.round(42 * scale),
-    iconBare: Math.round(58 * scale),
-    fontSize: Math.max(16, Math.round(24 * scale)),
-    sectionPad: Math.max(4, Math.round(10 * scale)),
-    headerPad: Math.max(6, Math.round(12 * scale)),
+const DAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"] as const;
+const THRESHOLD_HOURS_SEC = 7 * 3600;
+
+/** JST 基準で「今日」の曜日 index(月=0..日=6) を返す */
+function getJstTodayIndex(): number {
+  const jstDay = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tokyo",
+    weekday: "short",
+  }).format(new Date());
+  const map: Record<string, number> = {
+    Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6,
   };
+  return map[jstDay] ?? 0;
 }
 
-function buildNameStyle(name: string, fillViewport: boolean, rowCount = 6): CSSProperties {
-  const length = name.length;
-  const baseFontSize = Math.max(20, Math.min(46, 48 - Math.max(0, length - 10) * 0.9));
-  const scale = fillViewport ? Math.max(0.65, Math.min(1.8, 6 / rowCount)) : 1;
-  const fontSize = baseFontSize * (fillViewport ? scale : 1);
+function DailyDurationsGrid({
+  dailyDurationsSec,
+  fillViewport,
+  nameTextClass,
+}: {
+  dailyDurationsSec?: number[];
+  fillViewport: boolean;
+  nameTextClass: string;
+}) {
+  const durations = dailyDurationsSec ?? [0, 0, 0, 0, 0, 0, 0];
+  const todayIndex = getJstTodayIndex();
 
-  return {
-    fontSize: `${Math.max(18, fontSize)}px`,
-    lineHeight: 1.12,
-  };
-}
-
-function formatDurationHours(durationSec: number): string {
-  return `${(Math.max(0, durationSec) / 3600).toFixed(1)}h`;
-}
-
-function getFontSizePx(fontSize: CSSProperties["fontSize"]): number {
-  if (typeof fontSize === "number") {
-    return fontSize;
-  }
-
-  if (typeof fontSize === "string") {
-    const parsed = Number.parseFloat(fontSize);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-
-  return 18;
+  return (
+    <div
+      className={cn(
+        "mt-auto grid grid-cols-7",
+        fillViewport
+          ? "text-[clamp(9px,8cqh,18px)]"
+          : "mt-2 text-xs sm:text-sm",
+      )}
+    >
+      {DAY_LABELS.map((label, index) => {
+        const sec = durations[index] ?? 0;
+        const isFuture = index > todayIndex;
+        const isAboveThreshold = sec >= THRESHOLD_HOURS_SEC;
+        const durationColor = isAboveThreshold ? "text-blue-500" : "text-red-500";
+        const labelColor = isFuture ? nameTextClass : durationColor;
+        return (
+          <div
+            key={label}
+            className="flex min-w-0 flex-col items-center gap-0.5 py-1"
+          >
+            <span className={cn("truncate font-black", labelColor, isFuture && "opacity-80")}>
+              {label}
+            </span>
+            <span
+              className={cn(
+                "truncate font-bold tabular-nums",
+                durationColor,
+                fillViewport ? "text-[clamp(13px,12cqh,26px)]" : "text-base sm:text-lg",
+              )}
+              style={{ visibility: isFuture ? "hidden" : "visible" }}
+            >
+              {formatDailyHours(sec)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function StatusSection({
@@ -296,7 +433,8 @@ function StatusSection({
   label,
   sectionKey,
   fillViewport,
-  iconSizes,
+  cardInactiveIconClass,
+  cardInactiveTextClass,
   onPressStart,
   onPressEnd,
 }: {
@@ -306,7 +444,8 @@ function StatusSection({
   label: string;
   sectionKey: SectionKey;
   fillViewport: boolean;
-  iconSizes: IconSizes;
+  cardInactiveIconClass: string;
+  cardInactiveTextClass: string;
   onPressStart: (startTime: number) => void;
   onPressEnd: () => void;
 }) {
@@ -324,7 +463,7 @@ function StatusSection({
       )}
       style={
         fillViewport
-          ? { paddingTop: iconSizes.sectionPad, paddingBottom: iconSizes.sectionPad }
+          ? { paddingTop: "2cqh", paddingBottom: "2cqh" }
           : { minHeight: 84, paddingTop: 10, paddingBottom: 10 }
       }
       onPointerDown={(event) => onPressStart(event.timeStamp)}
@@ -343,19 +482,19 @@ function StatusSection({
 
       <Icon
         className={cn(
-          "relative z-10 transition-colors duration-150",
-          lit ? theme.textActive : theme.iconInactiveText,
+          "relative z-10 shrink-0 transition-colors duration-150",
+          lit ? theme.textActive : cardInactiveIconClass,
+          fillViewport ? "h-[clamp(14px,14cqh,44px)] w-[clamp(14px,14cqh,44px)]" : "h-6 w-6",
         )}
-        style={{ width: iconSizes.iconBare, height: iconSizes.iconBare }}
         strokeWidth={2}
         aria-hidden="true"
       />
       <span
         className={cn(
-          "relative z-10 font-semibold capitalize tracking-[0.01em] transition-colors duration-150",
-          lit ? theme.textActive : theme.textInactive,
+          "relative z-10 whitespace-nowrap font-semibold capitalize leading-none tracking-[0.01em] transition-colors duration-150",
+          lit ? theme.textActive : cardInactiveTextClass,
+          fillViewport ? "text-[clamp(10px,7cqh,22px)]" : "text-[13px]",
         )}
-        style={{ fontSize: iconSizes.fontSize, lineHeight: 1.1 }}
       >
         {label}
       </span>
@@ -406,7 +545,7 @@ const sectionThemes: Record<
     activeBg: "bg-emerald-200",
     cardBg: "bg-emerald-100",
     cardBorder: "border-emerald-500",
-    fillBg: "bg-emerald-100",
+    fillBg: "bg-emerald-400",
     headerBg: "bg-emerald-200",
     headerBorder: "border-emerald-300",
     iconActiveBg: "bg-emerald-600",
@@ -426,7 +565,7 @@ const sectionThemes: Record<
     activeBg: "bg-amber-200",
     cardBg: "bg-amber-100",
     cardBorder: "border-amber-500",
-    fillBg: "bg-amber-100",
+    fillBg: "bg-amber-400",
     headerBg: "bg-amber-200",
     headerBorder: "border-amber-300",
     iconActiveBg: "bg-amber-600",
@@ -446,7 +585,7 @@ const sectionThemes: Record<
     activeBg: "bg-blue-200",
     cardBg: "bg-blue-100",
     cardBorder: "border-blue-500",
-    fillBg: "bg-blue-100",
+    fillBg: "bg-blue-400",
     headerBg: "bg-blue-200",
     headerBorder: "border-blue-300",
     iconActiveBg: "bg-blue-600",
@@ -466,7 +605,7 @@ const sectionThemes: Record<
     activeBg: "bg-slate-600",
     cardBg: "bg-slate-700",
     cardBorder: "border-slate-500",
-    fillBg: "bg-slate-700",
+    fillBg: "bg-slate-400",
     headerBg: "bg-slate-800",
     headerBorder: "border-slate-600",
     iconActiveBg: "bg-slate-300",

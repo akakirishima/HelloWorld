@@ -165,8 +165,10 @@ def test_weekly_attendance_summary_uses_jst_ranges_and_open_sessions(tmp_path: P
 
     assert by_user[member.user_id].weekly_duration_sec == 6 * 60 * 60
     assert by_user[member.user_id].today_duration_sec == 1 * 60 * 60
+    assert by_user[member.user_id].daily_durations_sec == [4 * 3600, 1 * 3600, 1 * 3600, 0, 0, 0, 0]
     assert by_user[target.user_id].weekly_duration_sec == 4 * 60 * 60
     assert by_user[target.user_id].today_duration_sec == 3 * 60 * 60
+    assert by_user[target.user_id].daily_durations_sec == [1 * 3600, 0, 3 * 3600, 0, 0, 0, 0]
     assert by_user[member.user_id].rank == 1
     assert by_user[target.user_id].rank == 2
     assert admin.user_id not in by_user

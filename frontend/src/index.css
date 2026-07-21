@@ -68,3 +68,106 @@ button {
     @apply tracking-tight text-slate-950;
   }
 }
+
+/* ── ランキング用メタリック光沢リング（順位ごとに太さと色をハッキリ差別化）── */
+/* #1 GOLD: 太め 6px, 鮮やか黄金 (yellow-300 → yellow-400) */
+@keyframes rank-gold-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 6px rgba(250, 204, 21, 1),
+      0 0 24px 6px rgba(250, 204, 21, 0.7),
+      0 0 56px 12px rgba(250, 204, 21, 0.4);
+  }
+  50% {
+    box-shadow:
+      0 0 0 6px rgba(254, 240, 138, 1),
+      0 0 36px 10px rgba(250, 204, 21, 0.95),
+      0 0 76px 18px rgba(250, 204, 21, 0.55);
+  }
+}
+
+/* #2 SILVER: 中太 4px, 明背景でも視認できる metallic gray (slate-500 → slate-300) */
+@keyframes rank-silver-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 4px rgba(100, 116, 139, 1),
+      0 0 20px 4px rgba(148, 163, 184, 0.6),
+      0 0 40px 8px rgba(148, 163, 184, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgba(148, 163, 184, 1),
+      0 0 30px 7px rgba(148, 163, 184, 0.85),
+      0 0 56px 12px rgba(148, 163, 184, 0.45);
+  }
+}
+
+/* #3 BRONZE: 細め 3px, 深いブロンズ (orange-800 系) */
+@keyframes rank-bronze-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgba(154, 52, 18, 1),
+      0 0 16px 3px rgba(154, 52, 18, 0.55),
+      0 0 32px 6px rgba(154, 52, 18, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(194, 65, 12, 1),
+      0 0 24px 5px rgba(154, 52, 18, 0.8),
+      0 0 44px 9px rgba(154, 52, 18, 0.42);
+  }
+}
+
+.rank-glow-gold {
+  animation: rank-gold-pulse 2.4s ease-in-out infinite;
+}
+
+.rank-glow-silver {
+  animation: rank-silver-pulse 3s ease-in-out infinite;
+}
+
+.rank-glow-bronze {
+  animation: rank-bronze-pulse 3s ease-in-out infinite;
+}
+
+/* 長押し中は、パルスとキラキラの animation を一時停止 */
+.rank-animations-paused,
+.rank-animations-paused * {
+  animation-play-state: paused !important;
+}
+
+/* ── Border Beam 用 (--beam-angle をアニメート) ── */
+@property --beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes border-beam-rotate {
+  from {
+    --beam-angle: 0deg;
+  }
+  to {
+    --beam-angle: 360deg;
+  }
+}
+
+/* ── Sparkles (名前の周囲に星をキラキラ) ── */
+@keyframes sparkle-pop {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1) rotate(90deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
+}
