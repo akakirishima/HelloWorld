@@ -1,9 +1,12 @@
 import type { DashboardMatrixRow } from "@/types/app";
 
-import { FlaskConical, GraduationCap, Home, School, Trophy } from "lucide-react";
+import { FlaskConical, GraduationCap, Home, School } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { SparklesLayer } from "@/components/magicui/sparkles-text";
 import { cn } from "@/lib/utils";
+
+const OPTIMISTIC_TTL_MS = 5000;
 
 type StatusCardGridProps = {
   rows: DashboardMatrixRow[];
@@ -39,7 +42,7 @@ export function StatusCardGrid({
   onSectionSelect,
 }: StatusCardGridProps) {
   const memberRowCount = Math.max(1, Math.ceil(rows.length / 2));
-  const rowCount = memberRowCount + (showAds ? 2 : 0);
+  const rowCount = memberRowCount + (showAds ? 1 : 0);
 
   return (
     <div
@@ -64,7 +67,6 @@ export function StatusCardGrid({
           disabledSections={disabledSections}
           onSectionSelect={onSectionSelect}
           row={row}
-          isFeatured={row.weeklyRank === 1}
         />
       ))}
       {showAds ? <BoardAdCarousel /> : null}
@@ -139,7 +141,7 @@ function BoardAdCarousel() {
   return (
     <aside
       aria-label="広告枠"
-      className="relative col-span-2 col-start-1 row-span-2 min-h-0 overflow-hidden"
+      className="relative col-span-2 col-start-1 min-h-0 overflow-hidden"
       data-active-ad={activeAd.id}
       data-testid="board-ad-carousel"
     >
@@ -178,28 +180,30 @@ function StatusCard({
   fillViewport,
   disabledSections,
   onSectionSelect,
-  isFeatured,
 }: {
   row: DashboardMatrixRow;
   fillViewport: boolean;
   disabledSections: SectionKey[];
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
-  isFeatured: boolean;
 }) {
   const serverActive = mapRowToSection(row);
-  const [optimisticActive, setOptimisticActive] = useState<{
-    serverActive: SectionKey;
-    value: SectionKey;
-  } | null>(null);
+  const [optimisticActive, setOptimisticActive] = useState<SectionKey | null>(null);
   const [pressing, setPressing] = useState<SectionKey | null>(null);
   const [progress, setProgress] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
 
-  const activeSection =
-    optimisticActive?.serverActive === serverActive ? optimisticActive.value : serverActive;
+  const activeSection = optimisticActive ?? serverActive;
   const theme = sectionThemes[activeSection];
-  const weeklyDurationLabel = `今週 ${formatDurationHours(row.weeklyDurationSec)}`;
+
+  /* 最新のユーザー意図を TTL の間だけ守る。
+     サーバが opt.value に追いつけば表示は同じなのでそのまま同居し、TTL 後に自然消失。
+     サーバが別値でも TTL 内はユーザー意図優先（連続押しの先着 refresh に破壊されない）。 */
+  useEffect(() => {
+    if (optimisticActive === null) return;
+    const timeout = window.setTimeout(() => setOptimisticActive(null), OPTIMISTIC_TTL_MS);
+    return () => window.clearTimeout(timeout);
+  }, [optimisticActive]);
 
   const getFillPct = (key: SectionKey): number => {
     if (pressing && pressing !== activeSection) {
@@ -213,6 +217,7 @@ function StatusCard({
   const handlePressStart = (section: SectionKey, startTime: number) => {
     if (disabledSections.includes(section)) return;
     if (section === activeSection) return;
+    if (timerRef.current) clearInterval(timerRef.current); // 前のタイマー残骸を防御的に破棄
     setPressing(section);
     setProgress(0);
     startTimeRef.current = startTime;
@@ -221,7 +226,8 @@ function StatusCard({
       setProgress(p);
       if (p >= 1) {
         clearInterval(timerRef.current!);
-        setOptimisticActive({ serverActive, value: section });
+        timerRef.current = null;
+        setOptimisticActive(section);
         setPressing(null);
         setProgress(0);
         void onSectionSelect?.(row.id, section);
@@ -235,68 +241,94 @@ function StatusCard({
     setProgress(0);
   };
 
+  const rankGlow =
+    row.weeklyRank === 1
+      ? "rank-glow-gold"
+      : row.weeklyRank === 2
+      ? "rank-glow-silver"
+      : row.weeklyRank === 3
+      ? "rank-glow-bronze"
+      : "";
+
+  const sparkleColors =
+    row.weeklyRank === 1
+      ? { first: "#fef08a", second: "#fbbf24" }
+      : row.weeklyRank === 2
+      ? { first: "#cbd5e1", second: "#64748b" }
+      : row.weeklyRank === 3
+      ? { first: "#fed7aa", second: "#c2410c" }
+      : null;
+
   return (
     <article
       className={cn(
         "relative min-w-0 overflow-hidden rounded-[20px] border-2 shadow-soft transition-colors duration-700",
         fillViewport ? "flex h-full flex-col" : "",
-        isFeatured && "ring-2 ring-amber-300/80",
+        rankGlow,
+        pressing && "rank-animations-paused",
         theme.cardBorder,
         theme.cardBg,
       )}
       style={fillViewport ? { containerType: "size" } : undefined}
     >
+      {sparkleColors ? (
+        <SparklesLayer
+          colors={sparkleColors}
+          sparklesCount={4}
+          starSize={fillViewport ? 9 : 11}
+          className="z-20 opacity-70"
+        />
+      ) : null}
+
+      {/* ── 上部エリア ── */}
       <header
         className={cn(
-          "grid min-h-0 shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)_minmax(0,1fr)] items-center border-b px-2 transition-colors duration-700",
+          "flex shrink-0 flex-col border-b px-3 transition-colors duration-700",
           theme.headerBorder,
           theme.headerBg,
-          fillViewport ? "h-[43cqh] gap-[1cqw]" : "gap-2 py-3",
+          fillViewport ? "h-[55cqh] py-[2cqh]" : "py-3",
         )}
       >
-        <span
-          className={cn(
-            "min-w-0 font-mono font-bold tabular-nums transition-colors duration-700",
-            theme.nameText,
-            fillViewport ? "text-[clamp(11px,16cqh,38px)]" : "text-base",
-          )}
-          style={{ opacity: row.checkInAt !== "未出勤" ? 0.85 : 0 }}
-        >
-          {row.checkInAt !== "未出勤" ? row.checkInAt : ""}
-        </span>
-        <div className="min-w-0 text-center">
-            <p
-              className={cn(
-                "truncate font-semibold leading-none transition-colors duration-700",
-                theme.nameText,
-                fillViewport ? "text-[clamp(15px,18cqh,46px)]" : "text-2xl",
-              )}
-              title={row.name}
-            >
-              {row.name}
-            </p>
-            <p
-              className={cn(
-                "mt-[2cqh] truncate font-mono font-bold leading-none tabular-nums transition-colors duration-700",
-                theme.nameText,
-                fillViewport ? "text-[clamp(9px,7cqh,20px)]" : "text-xs",
-              )}
-              style={{ opacity: 0.78 }}
-              title={weeklyDurationLabel}
-            >
-              {weeklyDurationLabel}
-            </p>
+        {/* 行1: 時刻(左) + 名前(中央) + 時刻(右) — 左右スロット幅は固定して名前を常に真ん中に */}
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-baseline gap-1">
+          <span
+            className={cn(
+              "min-w-0 truncate text-left font-mono font-bold tabular-nums transition-colors duration-700",
+              theme.nameText,
+              fillViewport ? "text-[clamp(13px,9cqh,22px)]" : "text-base",
+            )}
+            style={{ opacity: row.checkInAt !== "未出勤" ? 0.9 : 0 }}
+          >
+            {row.checkInAt !== "未出勤" ? row.checkInAt : ""}
+          </span>
+          <p
+            className={cn(
+              "min-w-0 truncate text-center font-semibold leading-tight transition-colors duration-700",
+              theme.nameText,
+              fillViewport ? "text-[clamp(12px,12cqh,36px)]" : "text-xl sm:text-2xl",
+            )}
+            title={row.name}
+          >
+            {row.name}
+          </p>
+          <span
+            className={cn(
+              "min-w-0 truncate text-right font-mono font-bold tabular-nums transition-colors duration-700",
+              theme.nameText,
+              fillViewport ? "text-[clamp(13px,9cqh,22px)]" : "text-base",
+            )}
+            style={{ opacity: row.checkOutAt ? 0.9 : 0 }}
+          >
+            {row.checkOutAt ?? ""}
+          </span>
         </div>
-        <span
-          className={cn(
-            "min-w-0 text-right font-mono font-bold tabular-nums transition-colors duration-700",
-            theme.nameText,
-            fillViewport ? "text-[clamp(11px,16cqh,38px)]" : "text-base",
-          )}
-          style={{ opacity: row.checkOutAt ? 0.85 : 0 }}
-        >
-          {row.checkOutAt ?? ""}
-        </span>
+
+        {/* 行2: 曜日別滞在時間グリッド */}
+        <DailyDurationsGrid
+          dailyDurationsSec={row.dailyDurationsSec}
+          fillViewport={fillViewport}
+          nameTextClass={theme.nameText}
+        />
       </header>
 
       <div className={cn("grid grid-cols-4 divide-x transition-colors duration-700", theme.sectionsDivide, theme.sectionsBg, fillViewport ? "flex-1 min-h-0" : "")} style={{ transitionDelay: "0ms" }}>
@@ -309,24 +341,89 @@ function StatusCard({
             fillViewport={fillViewport}
             label={section.label}
             sectionKey={section.key}
+            cardInactiveIconClass={theme.iconInactiveText}
+            cardInactiveTextClass={theme.textInactive}
             onPressStart={(startTime) => handlePressStart(section.key, startTime)}
             onPressEnd={handlePressEnd}
           />
         ))}
       </div>
 
-      {isFeatured && (
-        <div className="pointer-events-none absolute bottom-2 left-2 z-20 flex items-center gap-1 rounded-full border border-amber-300 bg-white/90 px-2.5 py-1 text-xs font-bold text-amber-800 shadow-sm">
-          <Trophy size={14} strokeWidth={2.2} aria-hidden="true" />
-          <span>Weekly #1</span>
-        </div>
-      )}
     </article>
   );
 }
 
-function formatDurationHours(durationSec: number): string {
-  return `${(Math.max(0, durationSec) / 3600).toFixed(1)}h`;
+/** 秒を「4h」「4.5h」形式に変換。整数なら小数なし。 */
+function formatDailyHours(sec: number): string {
+  const hours = Math.max(0, sec) / 3600;
+  return Number.isInteger(hours) ? `${hours}h` : `${parseFloat(hours.toFixed(1))}h`;
+}
+
+const DAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"] as const;
+const THRESHOLD_HOURS_SEC = 7 * 3600;
+
+/** JST 基準で「今日」の曜日 index(月=0..日=6) を返す */
+function getJstTodayIndex(): number {
+  const jstDay = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tokyo",
+    weekday: "short",
+  }).format(new Date());
+  const map: Record<string, number> = {
+    Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6,
+  };
+  return map[jstDay] ?? 0;
+}
+
+function DailyDurationsGrid({
+  dailyDurationsSec,
+  fillViewport,
+  nameTextClass,
+}: {
+  dailyDurationsSec?: number[];
+  fillViewport: boolean;
+  nameTextClass: string;
+}) {
+  const durations = dailyDurationsSec ?? [0, 0, 0, 0, 0, 0, 0];
+  const todayIndex = getJstTodayIndex();
+
+  return (
+    <div
+      className={cn(
+        "mt-auto grid grid-cols-7",
+        fillViewport
+          ? "text-[clamp(9px,8cqh,18px)]"
+          : "mt-2 text-xs sm:text-sm",
+      )}
+    >
+      {DAY_LABELS.map((label, index) => {
+        const sec = durations[index] ?? 0;
+        const isFuture = index > todayIndex;
+        const isAboveThreshold = sec >= THRESHOLD_HOURS_SEC;
+        const durationColor = isAboveThreshold ? "text-blue-500" : "text-red-500";
+        const labelColor = isFuture ? nameTextClass : durationColor;
+        return (
+          <div
+            key={label}
+            className="flex min-w-0 flex-col items-center gap-0.5 py-1"
+          >
+            <span className={cn("truncate font-black", labelColor, isFuture && "opacity-80")}>
+              {label}
+            </span>
+            <span
+              className={cn(
+                "truncate font-bold tabular-nums",
+                durationColor,
+                fillViewport ? "text-[clamp(13px,12cqh,26px)]" : "text-base sm:text-lg",
+              )}
+              style={{ visibility: isFuture ? "hidden" : "visible" }}
+            >
+              {formatDailyHours(sec)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function StatusSection({
@@ -336,6 +433,8 @@ function StatusSection({
   label,
   sectionKey,
   fillViewport,
+  cardInactiveIconClass,
+  cardInactiveTextClass,
   onPressStart,
   onPressEnd,
 }: {
@@ -345,6 +444,8 @@ function StatusSection({
   label: string;
   sectionKey: SectionKey;
   fillViewport: boolean;
+  cardInactiveIconClass: string;
+  cardInactiveTextClass: string;
   onPressStart: (startTime: number) => void;
   onPressEnd: () => void;
 }) {
@@ -382,8 +483,8 @@ function StatusSection({
       <Icon
         className={cn(
           "relative z-10 shrink-0 transition-colors duration-150",
-          lit ? theme.textActive : theme.iconInactiveText,
-          fillViewport ? "h-[clamp(14px,18cqh,58px)] w-[clamp(14px,18cqh,58px)]" : "h-5 w-5",
+          lit ? theme.textActive : cardInactiveIconClass,
+          fillViewport ? "h-[clamp(14px,14cqh,44px)] w-[clamp(14px,14cqh,44px)]" : "h-6 w-6",
         )}
         strokeWidth={2}
         aria-hidden="true"
@@ -391,8 +492,8 @@ function StatusSection({
       <span
         className={cn(
           "relative z-10 whitespace-nowrap font-semibold capitalize leading-none tracking-[0.01em] transition-colors duration-150",
-          lit ? theme.textActive : theme.textInactive,
-          fillViewport ? "text-[clamp(9px,9cqh,24px)]" : "text-[11px]",
+          lit ? theme.textActive : cardInactiveTextClass,
+          fillViewport ? "text-[clamp(10px,7cqh,22px)]" : "text-[13px]",
         )}
       >
         {label}
@@ -444,7 +545,7 @@ const sectionThemes: Record<
     activeBg: "bg-emerald-200",
     cardBg: "bg-emerald-100",
     cardBorder: "border-emerald-500",
-    fillBg: "bg-emerald-100",
+    fillBg: "bg-emerald-400",
     headerBg: "bg-emerald-200",
     headerBorder: "border-emerald-300",
     iconActiveBg: "bg-emerald-600",
@@ -464,7 +565,7 @@ const sectionThemes: Record<
     activeBg: "bg-amber-200",
     cardBg: "bg-amber-100",
     cardBorder: "border-amber-500",
-    fillBg: "bg-amber-100",
+    fillBg: "bg-amber-400",
     headerBg: "bg-amber-200",
     headerBorder: "border-amber-300",
     iconActiveBg: "bg-amber-600",
@@ -484,7 +585,7 @@ const sectionThemes: Record<
     activeBg: "bg-blue-200",
     cardBg: "bg-blue-100",
     cardBorder: "border-blue-500",
-    fillBg: "bg-blue-100",
+    fillBg: "bg-blue-400",
     headerBg: "bg-blue-200",
     headerBorder: "border-blue-300",
     iconActiveBg: "bg-blue-600",
@@ -504,7 +605,7 @@ const sectionThemes: Record<
     activeBg: "bg-slate-600",
     cardBg: "bg-slate-700",
     cardBorder: "border-slate-500",
-    fillBg: "bg-slate-700",
+    fillBg: "bg-slate-400",
     headerBg: "bg-slate-800",
     headerBorder: "border-slate-600",
     iconActiveBg: "bg-slate-300",

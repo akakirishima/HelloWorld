@@ -375,6 +375,7 @@ export const initialDashboardMatrixRows: DashboardMatrixRow[] = presenceMembers.
   checkOutAt: null,
   todayDurationSec: 0,
   weeklyDurationSec: 0,
+  dailyDurationsSec: [0, 0, 0, 0, 0, 0, 0],
   weeklyRank: null,
   checkInAt: member.todayCheckInAt ?? "未出勤",
 }));

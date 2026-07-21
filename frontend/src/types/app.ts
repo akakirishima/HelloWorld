@@ -72,6 +72,7 @@ export type DashboardMatrixRow = {
   checkOutAt: string | null;
   todayDurationSec: number;
   weeklyDurationSec: number;
+  dailyDurationsSec?: number[];
   weeklyRank: number | null;
 };
 
