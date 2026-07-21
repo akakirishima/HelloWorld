@@ -210,7 +210,7 @@ function StatusCard({
   return (
     <article
       className={cn(
-        "relative min-w-0 overflow-hidden rounded-[20px] border-2 shadow-soft transition-colors duration-700",
+        "relative min-w-0 overflow-hidden rounded-[20px] border-2 transition-colors duration-700",
         fillViewport ? "flex h-full flex-col" : "",
         rankGlow,
         pressing && "rank-animations-paused",
