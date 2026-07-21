@@ -213,7 +213,6 @@ function StatusCard({
         "relative min-w-0 overflow-hidden rounded-[20px] border-2 transition-colors duration-200",
         fillViewport ? "flex h-full flex-col" : "",
         rankGlow,
-        pressing && "rank-animations-paused",
         theme.cardBorder,
         theme.cardBg,
       )}

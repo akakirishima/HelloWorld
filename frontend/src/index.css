@@ -69,55 +69,16 @@ button {
   }
 }
 
-/* ── ランキング用パルス（軽量版：単層 box-shadow のみ）── */
-/* #1 GOLD: 太め 6px, 鮮やか黄金 */
-@keyframes rank-gold-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.85);
-  }
-  50% {
-    box-shadow: 0 0 0 6px rgba(254, 240, 138, 1);
-  }
-}
-
-/* #2 SILVER: 中太 4px, metallic gray */
-@keyframes rank-silver-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 4px rgba(100, 116, 139, 0.85);
-  }
-  50% {
-    box-shadow: 0 0 0 4px rgba(148, 163, 184, 1);
-  }
-}
-
-/* #3 BRONZE: 細め 3px, 深いブロンズ */
-@keyframes rank-bronze-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 3px rgba(154, 52, 18, 0.85);
-  }
-  50% {
-    box-shadow: 0 0 0 3px rgba(194, 65, 12, 1);
-  }
-}
-
+/* ── ランキング用リング（静的、アニメーションなし）── */
 .rank-glow-gold {
-  animation: rank-gold-pulse 2.4s ease-in-out infinite;
+  box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.95);
 }
 
 .rank-glow-silver {
-  animation: rank-silver-pulse 3s ease-in-out infinite;
+  box-shadow: 0 0 0 4px rgba(100, 116, 139, 0.95);
 }
 
 .rank-glow-bronze {
-  animation: rank-bronze-pulse 3s ease-in-out infinite;
-}
-
-/* 長押し中は、順位パルスの animation を一時停止 */
-.rank-animations-paused,
-.rank-animations-paused * {
-  animation-play-state: paused !important;
+  box-shadow: 0 0 0 3px rgba(154, 52, 18, 0.95);
 }
 
