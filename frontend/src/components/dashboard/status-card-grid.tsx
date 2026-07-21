@@ -3,7 +3,6 @@ import type { DashboardMatrixRow } from "@/types/app";
 import { FlaskConical, GraduationCap, Home, School } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { SparklesLayer } from "@/components/magicui/sparkles-text";
 import { cn } from "@/lib/utils";
 
 const OPTIMISTIC_TTL_MS = 5000;
@@ -250,15 +249,6 @@ function StatusCard({
       ? "rank-glow-bronze"
       : "";
 
-  const sparkleColors =
-    row.weeklyRank === 1
-      ? { first: "#fef08a", second: "#fbbf24" }
-      : row.weeklyRank === 2
-      ? { first: "#cbd5e1", second: "#64748b" }
-      : row.weeklyRank === 3
-      ? { first: "#fed7aa", second: "#c2410c" }
-      : null;
-
   return (
     <article
       className={cn(
@@ -271,15 +261,6 @@ function StatusCard({
       )}
       style={fillViewport ? { containerType: "size" } : undefined}
     >
-      {sparkleColors ? (
-        <SparklesLayer
-          colors={sparkleColors}
-          sparklesCount={4}
-          starSize={fillViewport ? 9 : 11}
-          className="z-20 opacity-70"
-        />
-      ) : null}
-
       {/* ── 上部エリア ── */}
       <header
         className={cn(

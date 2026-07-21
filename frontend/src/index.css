@@ -133,41 +133,9 @@ button {
   animation: rank-bronze-pulse 3s ease-in-out infinite;
 }
 
-/* 長押し中は、パルスとキラキラの animation を一時停止 */
+/* 長押し中は、順位パルスの animation を一時停止 */
 .rank-animations-paused,
 .rank-animations-paused * {
   animation-play-state: paused !important;
 }
 
-/* ── Border Beam 用 (--beam-angle をアニメート) ── */
-@property --beam-angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-
-@keyframes border-beam-rotate {
-  from {
-    --beam-angle: 0deg;
-  }
-  to {
-    --beam-angle: 360deg;
-  }
-}
-
-/* ── Sparkles (名前の周囲に星をキラキラ) ── */
-@keyframes sparkle-pop {
-  0%,
-  100% {
-    opacity: 0;
-    transform: scale(0) rotate(0deg);
-  }
-  40% {
-    opacity: 1;
-    transform: scale(1) rotate(90deg);
-  }
-  60% {
-    opacity: 1;
-    transform: scale(1) rotate(180deg);
-  }
-}
