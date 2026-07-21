@@ -76,22 +76,22 @@ export function StatusCardGrid({
 const boardAds = [
   {
     id: "research-overview",
-    src: "/ads/research-overview.png",
+    src: "/ads/research-overview.webp",
     alt: "AIで世界の動きを読み解く研究紹介",
   },
   {
     id: "infant-motion",
-    src: "/ads/infant-motion.png",
+    src: "/ads/infant-motion.webp",
     alt: "新生児の運動解析研究紹介",
   },
   {
     id: "baseball-motion",
-    src: "/ads/baseball-motion.png",
+    src: "/ads/baseball-motion.webp",
     alt: "野球の投球動作解析研究紹介",
   },
   {
     id: "cattle-motion",
-    src: "/ads/cattle-motion.png",
+    src: "/ads/cattle-motion.webp",
     alt: "牛の行動解析研究紹介",
   },
 ] as const;
