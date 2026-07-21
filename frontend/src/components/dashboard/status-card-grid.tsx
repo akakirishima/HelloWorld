@@ -210,7 +210,7 @@ function StatusCard({
   return (
     <article
       className={cn(
-        "relative min-w-0 overflow-hidden rounded-[20px] border-2 transition-colors duration-700",
+        "relative min-w-0 overflow-hidden rounded-[20px] border-2 transition-colors duration-200",
         fillViewport ? "flex h-full flex-col" : "",
         rankGlow,
         pressing && "rank-animations-paused",
@@ -222,7 +222,7 @@ function StatusCard({
       {/* ── 上部エリア ── */}
       <header
         className={cn(
-          "flex shrink-0 flex-col border-b px-3 transition-colors duration-700",
+          "flex shrink-0 flex-col border-b px-3 transition-colors duration-200",
           theme.headerBorder,
           theme.headerBg,
           fillViewport ? "h-[55cqh] py-[2cqh]" : "py-3",
@@ -232,7 +232,7 @@ function StatusCard({
         <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-baseline gap-1">
           <span
             className={cn(
-              "min-w-0 truncate text-left font-mono font-bold tabular-nums transition-colors duration-700",
+              "min-w-0 truncate text-left font-mono font-bold tabular-nums transition-colors duration-200",
               theme.nameText,
               fillViewport ? "text-[clamp(13px,9cqh,22px)]" : "text-base",
             )}
@@ -242,7 +242,7 @@ function StatusCard({
           </span>
           <p
             className={cn(
-              "min-w-0 truncate text-center font-semibold leading-tight transition-colors duration-700",
+              "min-w-0 truncate text-center font-semibold leading-tight transition-colors duration-200",
               theme.nameText,
               fillViewport ? "text-[clamp(12px,12cqh,36px)]" : "text-xl sm:text-2xl",
             )}
@@ -252,7 +252,7 @@ function StatusCard({
           </p>
           <span
             className={cn(
-              "min-w-0 truncate text-right font-mono font-bold tabular-nums transition-colors duration-700",
+              "min-w-0 truncate text-right font-mono font-bold tabular-nums transition-colors duration-200",
               theme.nameText,
               fillViewport ? "text-[clamp(13px,9cqh,22px)]" : "text-base",
             )}
@@ -270,7 +270,7 @@ function StatusCard({
         />
       </header>
 
-      <div className={cn("grid grid-cols-4 divide-x transition-colors duration-700", theme.sectionsDivide, theme.sectionsBg, fillViewport ? "flex-1 min-h-0" : "")} style={{ transitionDelay: "0ms" }}>
+      <div className={cn("grid grid-cols-4 divide-x transition-colors duration-200", theme.sectionsDivide, theme.sectionsBg, fillViewport ? "flex-1 min-h-0" : "")} style={{ transitionDelay: "0ms" }}>
         {sections.map((section) => (
           <StatusSection
             key={section.key}
