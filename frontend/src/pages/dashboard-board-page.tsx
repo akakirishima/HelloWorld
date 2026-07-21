@@ -1,11 +1,14 @@
 import { Crosshair } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Link, Navigate } from "react-router-dom";
 
 import { StatusCardGrid } from "@/components/dashboard/status-card-grid";
 import { useAuth } from "@/features/auth/auth-context";
 import { useDashboardBoard } from "@/features/lab-board/use-dashboard-board";
 import type { DashboardMatrixRow } from "@/types/app";
+
+const NO_DISABLED_SECTIONS: ("lab" | "onCampus" | "class" | "home")[] = [];
+const ALL_DISABLED_SECTIONS: ("lab" | "onCampus" | "class" | "home")[] = ["lab", "onCampus", "class", "home"];
 
 const DEV_TARGET_ROW_COUNT = 16;
 
@@ -75,6 +78,18 @@ export function DashboardBoardPage() {
 
   const displayRows = useMemo(() => padRowsForDev(visibleRows), [visibleRows]);
 
+  const isAdmin = user?.role === "admin";
+  const disabledSections = isAdmin ? NO_DISABLED_SECTIONS : ALL_DISABLED_SECTIONS;
+  const onSectionSelect = useCallback(
+    (rowId: string, section: "lab" | "onCampus" | "class" | "home") => {
+      if (rowId.startsWith("__dev_pad_")) return;
+      if (section === "lab") return handleCellSelect(rowId, "room");
+      if (section === "onCampus") return handleCellSelect(rowId, "onCampus");
+      return handleCellSelect(rowId, section);
+    },
+    [handleCellSelect],
+  );
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,_#f4f8fb_0%,_#eef3f2_100%)]">
@@ -119,17 +134,8 @@ export function DashboardBoardPage() {
           className="h-full w-full"
           fillViewport
           showAds
-          disabledSections={user.role !== "admin" ? ["lab", "onCampus", "class", "home"] : []}
-          onSectionSelect={user.role === "admin" ? (rowId, section) => {
-            if (rowId.startsWith("__dev_pad_")) return;
-            if (section === "lab") {
-              return handleCellSelect(rowId, "room");
-            }
-            if (section === "onCampus") {
-              return handleCellSelect(rowId, "onCampus");
-            }
-            return handleCellSelect(rowId, section);
-          } : undefined}
+          disabledSections={disabledSections}
+          onSectionSelect={isAdmin ? onSectionSelect : undefined}
           rows={displayRows}
         />
         <Link
