@@ -312,6 +312,15 @@ def build_weekly_attendance_summary(
     today_start, today_end = get_jst_day_range(current_time)
     week_start, week_end = get_jst_week_range(current_time)
 
+    local_week_start = week_start.astimezone(JST)
+    day_ranges = [
+        (
+            (local_week_start + timedelta(days=i)).astimezone(timezone.utc),
+            (local_week_start + timedelta(days=i + 1)).astimezone(timezone.utc),
+        )
+        for i in range(7)
+    ]
+
     users = [
         user
         for user in stores.users.list_all()
@@ -322,6 +331,7 @@ def build_weekly_attendance_summary(
             "display_name": user.display_name,
             "today_duration_sec": 0,
             "weekly_duration_sec": 0,
+            "daily_durations_sec": [0] * 7,
         }
         for user in users
     }
@@ -341,6 +351,13 @@ def build_weekly_attendance_summary(
             range_end=today_end,
             now=current_time,
         )
+        for day_idx, (d_start, d_end) in enumerate(day_ranges):
+            totals[session_obj.user_id]["daily_durations_sec"][day_idx] += clipped_duration_sec(
+                session_obj,
+                range_start=d_start,
+                range_end=d_end,
+                now=current_time,
+            )
 
     sorted_users = sorted(
         users,
@@ -352,6 +369,7 @@ def build_weekly_attendance_summary(
             display_name=totals[user.user_id]["display_name"],
             today_duration_sec=totals[user.user_id]["today_duration_sec"],
             weekly_duration_sec=totals[user.user_id]["weekly_duration_sec"],
+            daily_durations_sec=totals[user.user_id]["daily_durations_sec"],
             rank=index + 1,
         )
         for index, user in enumerate(sorted_users)

@@ -74,6 +74,7 @@ type AttendanceSummaryItemResponse = {
   display_name: string;
   today_duration_sec: number;
   weekly_duration_sec: number;
+  daily_durations_sec?: number[];
   rank: number;
 };
 
@@ -396,6 +397,7 @@ function buildLabBoardState(
         checkOutAt,
         todayDurationSec: attendanceSummary?.today_duration_sec ?? 0,
         weeklyDurationSec: attendanceSummary?.weekly_duration_sec ?? 0,
+        dailyDurationsSec: attendanceSummary?.daily_durations_sec ?? [0, 0, 0, 0, 0, 0, 0],
         weeklyRank: attendanceSummary?.rank ?? null,
       };
     });
@@ -444,6 +446,7 @@ function buildBoardStateFromPresence(
       checkOutAt,
       todayDurationSec: attendanceSummary?.today_duration_sec ?? 0,
       weeklyDurationSec: attendanceSummary?.weekly_duration_sec ?? 0,
+      dailyDurationsSec: attendanceSummary?.daily_durations_sec ?? [0, 0, 0, 0, 0, 0, 0],
       weeklyRank: attendanceSummary?.rank ?? null,
     };
   });

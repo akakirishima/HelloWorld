@@ -27,6 +27,7 @@ class AttendanceSummaryItem(BaseModel):
     display_name: str
     today_duration_sec: int
     weekly_duration_sec: int
+    daily_durations_sec: list[int]
     rank: int
 
 

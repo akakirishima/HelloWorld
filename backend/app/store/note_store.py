@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import shutil
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+_JST = ZoneInfo("Asia/Tokyo")
 from pathlib import Path
 
 from fastapi import HTTPException, status
@@ -212,7 +215,7 @@ class NoteStore:
 
     def _ensure_editable(self, note_date: date) -> None:
         # 直近2週間のみ編集可。古い日誌は閲覧・出力はできるが編集は止める。
-        cutoff = datetime.now(timezone.utc).date() - timedelta(days=13)
+        cutoff = datetime.now(_JST).date() - timedelta(days=13)
         if note_date < cutoff:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

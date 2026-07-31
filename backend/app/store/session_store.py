@@ -111,7 +111,7 @@ class SessionStore:
         row = self._sqlite.execute(
             """
             SELECT * FROM sessions
-            WHERE user_id = ? AND date(check_in_at) = ?
+            WHERE user_id = ? AND date(check_in_at, '+9 hours') = ?
             ORDER BY check_in_at ASC
             LIMIT 1
             """,
