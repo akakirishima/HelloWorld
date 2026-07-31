@@ -63,7 +63,7 @@ export function AdminRoomDeletePage() {
       setError(message);
       setIsDeleting(false);
     }
-  }, [canDelete, navigate, room?.name, roomId]);
+  }, [canDelete, navigate, room, roomId]);
 
   if (!room) return null;
 
