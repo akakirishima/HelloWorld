@@ -103,6 +103,34 @@ CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes(updated_at);
 """
 
 
+class _MaterializedCursor:
+    """A fetch-only cursor whose rows were pulled while holding SqliteDb's lock.
+
+    sqlite3 connections opened with check_same_thread=False are not safe for
+    concurrent cursor use across threads: if one thread's fetchone/fetchall
+    interleaves with another thread's execute() on the same connection, rows
+    can come back missing or garbled. Materializing the result set before
+    releasing the lock keeps every execute()+fetch pair atomic.
+    """
+
+    def __init__(self, rows: list[sqlite3.Row], lastrowid: int | None) -> None:
+        self._rows = rows
+        self._index = 0
+        self.lastrowid = lastrowid
+
+    def fetchone(self) -> sqlite3.Row | None:
+        if self._index >= len(self._rows):
+            return None
+        row = self._rows[self._index]
+        self._index += 1
+        return row
+
+    def fetchall(self) -> list[sqlite3.Row]:
+        remaining = self._rows[self._index:]
+        self._index = len(self._rows)
+        return remaining
+
+
 class SqliteDb:
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -124,10 +152,21 @@ class SqliteDb:
     def _init_schema(self) -> None:
         with self._lock:
             self._conn.executescript(_SCHEMA)
+            self._migrate_schema_locked()
 
-    def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
+    def _migrate_schema_locked(self) -> None:
+        presence_cols = {
+            row["name"] for row in self._conn.execute("PRAGMA table_info(presence)").fetchall()
+        }
+        if "absence_reason" not in presence_cols:
+            self._conn.execute("ALTER TABLE presence ADD COLUMN absence_reason TEXT")
+        self._conn.commit()
+
+    def execute(self, sql: str, params: tuple = ()) -> _MaterializedCursor:
         with self._lock:
-            return self._conn.execute(sql, params)
+            cur = self._conn.execute(sql, params)
+            rows = cur.fetchall()
+            return _MaterializedCursor(rows, cur.lastrowid)
 
     def executemany(self, sql: str, params_seq: list[tuple]) -> None:
         with self._lock:

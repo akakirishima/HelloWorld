@@ -13,6 +13,7 @@ class PresenceStatus(str, Enum):
     SEMINAR = "Seminar"
     MEETING = "Meeting"
     OFF_CAMPUS = "Off Campus"
+    LONG_TERM_ABSENCE = "Long-term Absence"
 
 
 class SessionCloseReason(str, Enum):

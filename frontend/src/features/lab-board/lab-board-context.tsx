@@ -21,6 +21,7 @@ import {
   sortDashboardRows,
 } from "@/mocks/app-data";
 import type {
+  AbsenceReason,
   AcademicGrade,
   DashboardMatrixColumn,
   DashboardMatrixRow,
@@ -60,6 +61,7 @@ type PresenceItemResponse = {
   room_name: string | null;
   current_status: string;
   current_session_id: string | null;
+  absence_reason: string | null;
   last_changed_at: string | null;
   today_check_in_at: string | null;
   today_check_out_at: string | null;
@@ -103,6 +105,7 @@ type LabBoardContextValue = {
   activeRooms: RoomItem[];
   isLoaded: boolean;
   updateStatus: (rowId: string, column: Exclude<DashboardMatrixColumn, "name">) => Promise<void>;
+  setLongTermAbsence: (rowId: string, reason: AbsenceReason) => Promise<void>;
   replaceLabSettings: (lab: LabSettings) => Promise<void>;
   updateUserRole: (userId: string, role: "admin" | "member") => Promise<void>;
   updateUserRoom: (userId: string, roomId: string | null) => Promise<void>;
@@ -222,6 +225,13 @@ export function LabBoardProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        await refreshFromApi();
+      },
+      async setLongTermAbsence(rowId, reason) {
+        await apiFetch("/attendance/long-term-absence", {
+          method: "POST",
+          body: JSON.stringify({ target_user_id: rowId, reason }),
+        });
         await refreshFromApi();
       },
       async replaceLabSettings(lab) {
@@ -392,6 +402,7 @@ function buildLabBoardState(
         roomId: presence?.room_id === undefined ? item.roomId : toRoomIdString(presence.room_id),
         activeColumn: mapStatusToMatrixColumn(statusLabel),
         statusLabel,
+        absenceReason: normalizeAbsenceReason(presence?.absence_reason),
         currentSessionId: presence?.current_session_id ?? null,
         checkInAt,
         checkOutAt,
@@ -441,6 +452,7 @@ function buildBoardStateFromPresence(
       roomId: item.room_id === null ? null : String(item.room_id),
       activeColumn: mapStatusToMatrixColumn(statusLabel),
       statusLabel,
+      absenceReason: normalizeAbsenceReason(item.absence_reason),
       currentSessionId: item.current_session_id,
       checkInAt,
       checkOutAt,
@@ -465,12 +477,21 @@ function normalizePresenceStatus(value: string | undefined): DashboardMatrixRow[
     value === "Class" ||
     value === "Seminar" ||
     value === "Meeting" ||
-    value === "Off Campus"
+    value === "Off Campus" ||
+    value === "Long-term Absence"
   ) {
     return value;
   }
 
   return "Off Campus";
+}
+
+function normalizeAbsenceReason(value: string | null | undefined): AbsenceReason | null {
+  if (value === "business_trip" || value === "homecoming" || value === "other") {
+    return value;
+  }
+
+  return null;
 }
 
 function normalizeAcademicYear(value: string): AcademicGrade {

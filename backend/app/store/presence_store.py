@@ -13,6 +13,7 @@ def _row_to_record(row: object) -> PresenceRecord:
         user_id=row["user_id"],
         current_status=row["current_status"],
         current_session_id=row["current_session_id"],
+        absence_reason=row["absence_reason"] if "absence_reason" in row.keys() else None,
         last_changed_at=_parse_datetime(row["last_changed_at"], fallback=updated_at),
         updated_at=updated_at,
     )
@@ -55,13 +56,15 @@ class PresenceStore:
             self._sqlite.execute_and_commit(
                 """
                 INSERT OR REPLACE INTO presence
-                    (user_id, current_status, current_session_id, last_changed_at, updated_at)
-                VALUES (?, ?, ?, ?, ?)
+                    (user_id, current_status, current_session_id, absence_reason,
+                     last_changed_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.user_id,
                     record.current_status,
                     record.current_session_id,
+                    record.absence_reason,
                     record.last_changed_at.isoformat(),
                     record.updated_at.isoformat(),
                 ),
@@ -88,13 +91,15 @@ class PresenceStore:
         self._sqlite.execute_and_commit(
             """
             INSERT OR REPLACE INTO presence
-                (user_id, current_status, current_session_id, last_changed_at, updated_at)
-            VALUES (?, ?, ?, ?, ?)
+                (user_id, current_status, current_session_id, absence_reason,
+                 last_changed_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 updated.user_id,
                 updated.current_status,
                 updated.current_session_id,
+                updated.absence_reason,
                 updated.last_changed_at.isoformat(),
                 updated.updated_at.isoformat(),
             ),

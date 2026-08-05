@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 AttendanceStatus = Literal["Room", "On Campus", "Class", "Seminar", "Meeting", "Off Campus"]
 CheckInStatus = Literal["Room", "On Campus", "Class", "Seminar", "Meeting"]
+AbsenceReason = Literal["business_trip", "homecoming", "other"]
 
 
 class CheckInRequest(BaseModel):
@@ -20,6 +21,11 @@ class CheckOutRequest(BaseModel):
 class ChangeStatusRequest(BaseModel):
     target_user_id: str | None = None
     to_status: AttendanceStatus
+
+
+class SetLongTermAbsenceRequest(BaseModel):
+    target_user_id: str | None = None
+    reason: AbsenceReason
 
 
 class AttendanceSummaryItem(BaseModel):

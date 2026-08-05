@@ -61,7 +61,10 @@ def check_in(
 
     if open_session is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already checked in.")
-    if presence.current_status != PresenceStatus.OFF_CAMPUS.value:
+    if presence.current_status not in (
+        PresenceStatus.OFF_CAMPUS.value,
+        PresenceStatus.LONG_TERM_ABSENCE.value,
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current status must be Off Campus before check-in.",
@@ -85,6 +88,7 @@ def check_in(
         presence.model_copy(update={
             "current_status": initial_status,
             "current_session_id": session.id,
+            "absence_reason": None,
             "last_changed_at": now,
         })
     )
@@ -143,6 +147,7 @@ def check_out(
         presence.model_copy(update={
             "current_status": PresenceStatus.OFF_CAMPUS.value,
             "current_session_id": None,
+            "absence_reason": None,
             "last_changed_at": now,
         })
     )
@@ -164,6 +169,67 @@ def check_out(
         target_type="users",
         target_id=target.user_id,
         after_json={"status": presence.current_status, "session_id": updated_session.id},
+    )
+    return presence
+
+
+ABSENCE_REASONS = {"business_trip", "homecoming", "other"}
+
+
+def set_long_term_absence(
+    stores: Stores,
+    *,
+    actor: UserRecord,
+    target: UserRecord,
+    reason: str,
+) -> PresenceRecord:
+    if reason not in ABSENCE_REASONS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid absence reason."
+        )
+
+    presence = stores.presence.ensure(target.user_id)
+    open_session = stores.sessions.get_open_session(target.user_id)
+    now = datetime.now(timezone.utc)
+
+    if open_session is not None:
+        check_in_at = normalize_datetime(open_session.check_in_at)
+        duration_sec = int((now - check_in_at).total_seconds())
+        stores.sessions.update(
+            open_session.model_copy(update={
+                "check_out_at": now,
+                "duration_sec": duration_sec,
+                "close_reason": SessionCloseReason.MANUAL_CHECKOUT.value,
+            })
+        )
+
+    from_status = presence.current_status
+    presence = stores.presence.save(
+        presence.model_copy(update={
+            "current_status": PresenceStatus.LONG_TERM_ABSENCE.value,
+            "current_session_id": None,
+            "absence_reason": reason,
+            "last_changed_at": now,
+        })
+    )
+
+    stores.status_changes.append(StatusChangeRecord(
+        id=str(uuid.uuid4()),
+        user_id=target.user_id,
+        session_id=open_session.id if open_session is not None else None,
+        from_status=from_status,
+        to_status=PresenceStatus.LONG_TERM_ABSENCE.value,
+        changed_at=now,
+        changed_by=actor.user_id,
+        source="web",
+    ))
+    create_audit_log(
+        stores.audit,
+        actor_user_id=actor.user_id,
+        action="long_term_absence",
+        target_type="users",
+        target_id=target.user_id,
+        after_json={"status": presence.current_status, "reason": reason},
     )
     return presence
 
@@ -275,6 +341,7 @@ def patch_session_by_admin(
             presence.model_copy(update={
                 "current_status": PresenceStatus.OFF_CAMPUS.value,
                 "current_session_id": None,
+                "absence_reason": None,
                 "last_changed_at": normalized_check_out,
             })
         )

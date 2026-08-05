@@ -16,6 +16,7 @@ from app.services.attendance_service import (
     check_out,
     patch_session_by_admin,
     resolve_target_user,
+    set_long_term_absence,
 )
 from app.store import make_stores
 
@@ -118,6 +119,48 @@ def test_patch_session_validations_and_audit_log(tmp_path: Path) -> None:
         if row.action == "session_patch" and row.target_type == "sessions" and row.target_id == updated.id
     )
     assert log.reason == "退勤漏れ修正"
+
+
+def test_long_term_absence_closes_session_and_allows_check_in_return(tmp_path: Path) -> None:
+    stores, admin, member = _setup_stores(tmp_path)
+
+    check_in(stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value)
+
+    invalid_reason = _call_exc(
+        lambda: set_long_term_absence(stores, actor=member, target=member, reason="vacation")
+    )
+    assert invalid_reason is not None
+
+    presence = set_long_term_absence(stores, actor=member, target=member, reason="business_trip")
+    assert presence.current_status == PresenceStatus.LONG_TERM_ABSENCE.value
+    assert presence.absence_reason == "business_trip"
+    assert presence.current_session_id is None
+
+    sessions = stores.sessions.list_by_user(member.user_id)
+    assert sessions[0].check_out_at is not None
+    assert sessions[0].close_reason == "manual_checkout"
+    closed_duration_sec = sessions[0].duration_sec
+    assert closed_duration_sec is not None and closed_duration_sec >= 0
+
+    # 長期不在中でも滞在時間を持ち越さず、既存の出勤操作で復帰できる
+    presence = check_in(
+        stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value
+    )
+    assert presence.current_status == PresenceStatus.ROOM.value
+    assert presence.absence_reason is None
+    assert len(stores.sessions.list_by_user(member.user_id)) == 2
+
+    actions = _audit_actions(stores, member.user_id)
+    assert "long_term_absence" in actions
+
+
+def test_long_term_absence_without_open_session_only_labels_presence(tmp_path: Path) -> None:
+    stores, admin, member = _setup_stores(tmp_path)
+
+    presence = set_long_term_absence(stores, actor=member, target=member, reason="homecoming")
+    assert presence.current_status == PresenceStatus.LONG_TERM_ABSENCE.value
+    assert presence.absence_reason == "homecoming"
+    assert stores.sessions.list_by_user(member.user_id) == []
 
 
 def test_weekly_attendance_summary_uses_jst_ranges_and_open_sessions(tmp_path: Path) -> None:

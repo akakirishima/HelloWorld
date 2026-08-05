@@ -9,6 +9,7 @@ export function DashboardPage() {
   const {
     activeRooms,
     effectiveScope,
+    handleAbsenceSelect,
     handleCellSelect,
     isLoaded,
     labName,
@@ -83,6 +84,7 @@ export function DashboardPage() {
               }
               return handleCellSelect(rowId, section);
             }}
+            onAbsenceSelect={handleAbsenceSelect}
             rows={visibleRows}
           />
         </Panel>

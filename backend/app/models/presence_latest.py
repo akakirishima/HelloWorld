@@ -9,5 +9,6 @@ class PresenceRecord(BaseModel):
     user_id: str
     current_status: str
     current_session_id: str | None = None
+    absence_reason: str | None = None
     last_changed_at: datetime
     updated_at: datetime

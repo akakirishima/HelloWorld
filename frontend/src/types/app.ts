@@ -4,7 +4,10 @@ export type PresenceStatus =
   | "Class"
   | "Seminar"
   | "Meeting"
-  | "Off Campus";
+  | "Off Campus"
+  | "Long-term Absence";
+
+export type AbsenceReason = "business_trip" | "homecoming" | "other";
 
 export type AcademicGrade =
   | "Researcher"
@@ -67,6 +70,7 @@ export type DashboardMatrixRow = {
   roomId?: string | null;
   activeColumn: DashboardMatrixColumn;
   statusLabel: PresenceStatus;
+  absenceReason: AbsenceReason | null;
   currentSessionId: string | null;
   checkInAt: string;
   checkOutAt: string | null;
