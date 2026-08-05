@@ -30,19 +30,29 @@ def test_member_self_attendance_and_session_flow(tmp_path: Path) -> None:
     target = resolve_target_user(stores, member, None)
     assert target.user_id == member.user_id
 
-    presence = check_in(stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value)
+    presence = check_in(
+        stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value
+    )
     assert presence.current_status == PresenceStatus.ROOM.value
     assert presence.current_session_id is not None
 
     duplicate_check_in = _call_exc(
-        lambda: check_in(stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value)
+        lambda: check_in(
+            stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value
+        )
     )
     assert duplicate_check_in is not None
 
-    status = change_status(stores, actor=member, target=member, to_status=PresenceStatus.CLASS.value)
+    status = change_status(
+        stores, actor=member, target=member, to_status=PresenceStatus.CLASS.value
+    )
     assert status.current_status == PresenceStatus.CLASS.value
 
-    invalid_status = _call_exc(lambda: change_status(stores, actor=member, target=member, to_status=PresenceStatus.OFF_CAMPUS.value))
+    invalid_status = _call_exc(
+        lambda: change_status(
+            stores, actor=member, target=member, to_status=PresenceStatus.OFF_CAMPUS.value
+        )
+    )
     assert invalid_status is not None
 
     presence = check_out(stores, actor=member, target=member)
@@ -69,10 +79,14 @@ def test_target_user_permission_and_admin_updates(tmp_path: Path) -> None:
     resolved = resolve_target_user(stores, admin, target.user_id)
     assert resolved.user_id == target.user_id
 
-    presence = check_in(stores, actor=admin, target=target, initial_status=PresenceStatus.ON_CAMPUS.value)
+    presence = check_in(
+        stores, actor=admin, target=target, initial_status=PresenceStatus.ON_CAMPUS.value
+    )
     assert presence.current_status == PresenceStatus.ON_CAMPUS.value
 
-    presence = change_status(stores, actor=admin, target=target, to_status=PresenceStatus.SEMINAR.value)
+    presence = change_status(
+        stores, actor=admin, target=target, to_status=PresenceStatus.SEMINAR.value
+    )
     assert presence.current_status == PresenceStatus.SEMINAR.value
 
     presence = check_out(stores, actor=admin, target=target)
@@ -119,7 +133,9 @@ def test_patch_session_validations_and_audit_log(tmp_path: Path) -> None:
     audit_rows = stores.audit.list_recent(limit=20)
     log = next(
         row for row in audit_rows
-        if row.action == "session_patch" and row.target_type == "sessions" and row.target_id == updated.id
+        if row.action == "session_patch"
+        and row.target_type == "sessions"
+        and row.target_id == updated.id
     )
     assert log.reason == "退勤漏れ修正"
 
@@ -261,7 +277,9 @@ def _setup_stores(tmp_path: Path, *, include_target: bool = False):
     admin = _create_user(stores, "admin-user", "Admin User", UserRole.ADMIN.value, room.id, now)
     member = _create_user(stores, "member-user", "Member User", UserRole.MEMBER.value, room.id, now)
     if include_target:
-        target = _create_user(stores, "target-user", "Target User", UserRole.MEMBER.value, room.id, now)
+        target = _create_user(
+            stores, "target-user", "Target User", UserRole.MEMBER.value, room.id, now
+        )
         return stores, admin, member, target
     return stores, admin, member
 

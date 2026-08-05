@@ -31,7 +31,9 @@ async def _daily_auto_close_loop(app: FastAPI) -> None:
         if now >= target:
             target += timedelta(days=1)
         wait_sec = (target - now).total_seconds()
-        logger.info("auto_close: next run in %.0f seconds (at %s JST)", wait_sec, target.isoformat())
+        logger.info(
+            "auto_close: next run in %.0f seconds (at %s JST)", wait_sec, target.isoformat()
+        )
         await asyncio.sleep(wait_sec)
 
         try:

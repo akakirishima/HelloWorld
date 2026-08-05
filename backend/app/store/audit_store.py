@@ -61,7 +61,8 @@ class AuditStore:
                 self._sqlite.execute_and_commit(
                     """
                     INSERT OR IGNORE INTO audit_logs
-                        (id, actor_user_id, action, target_type, target_id, before_json, after_json, reason, created_at)
+                        (id, actor_user_id, action, target_type, target_id,
+                         before_json, after_json, reason, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -104,7 +105,8 @@ class AuditStore:
         self._sqlite.execute_and_commit(
             """
             INSERT OR IGNORE INTO audit_logs
-                (id, actor_user_id, action, target_type, target_id, before_json, after_json, reason, created_at)
+                (id, actor_user_id, action, target_type, target_id,
+                 before_json, after_json, reason, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (

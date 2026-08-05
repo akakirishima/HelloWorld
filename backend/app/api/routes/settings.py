@@ -110,7 +110,10 @@ def delete_room(room_id: int, admin: AdminUser, stores: AppStores) -> None:
     if assigned:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"この部屋には {len(assigned)} 人のメンバーが所属しています。先にメンバーの所属部屋を変更してください。",
+            detail=(
+                f"この部屋には {len(assigned)} 人のメンバーが所属しています。"
+                "先にメンバーの所属部屋を変更してください。"
+            ),
         )
 
     create_audit_log(

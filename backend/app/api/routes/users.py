@@ -26,7 +26,8 @@ def list_users(_: AdminUser, stores: AppStores) -> UserListResponse:
     )
     presences = {p.user_id: p for p in stores.presence.list_all()}
     rooms = {r.id: r for r in stores.rooms.list_rooms()}
-    return UserListResponse(items=[serialize_user(u, presences.get(u.user_id), rooms) for u in users])
+    items = [serialize_user(u, presences.get(u.user_id), rooms) for u in users]
+    return UserListResponse(items=items)
 
 
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -120,7 +121,9 @@ def disable_user(user_id: str, admin: AdminUser, stores: AppStores) -> UserRespo
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     if admin.user_id == user_id:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Cannot disable your own account.")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Cannot disable your own account."
+        )
     user = stores.users.save(user.model_copy(update={"is_active": False}))
     rooms = {r.id: r for r in stores.rooms.list_rooms()}
     presences = {p.user_id: p for p in stores.presence.list_all()}

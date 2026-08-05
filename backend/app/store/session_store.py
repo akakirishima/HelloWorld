@@ -46,7 +46,10 @@ class SessionStore:
                         id=row["id"],
                         user_id=row["user_id"],
                         check_in_at=datetime.fromisoformat(row["check_in_at"]),
-                        check_out_at=datetime.fromisoformat(row["check_out_at"]) if row["check_out_at"] else None,
+                        check_out_at=(
+                            datetime.fromisoformat(row["check_out_at"])
+                            if row["check_out_at"] else None
+                        ),
                         duration_sec=int(row["duration_sec"]) if row["duration_sec"] else None,
                         close_reason=row["close_reason"] or None,
                         created_at=datetime.fromisoformat(row["created_at"]),
@@ -57,7 +60,8 @@ class SessionStore:
                 self._sqlite.execute_and_commit(
                     """
                     INSERT OR REPLACE INTO sessions
-                        (id, user_id, check_in_at, check_out_at, duration_sec, close_reason, created_at, updated_at)
+                        (id, user_id, check_in_at, check_out_at, duration_sec,
+                         close_reason, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -78,7 +82,8 @@ class SessionStore:
         self._sqlite.execute_and_commit(
             """
             INSERT OR REPLACE INTO sessions
-                (id, user_id, check_in_at, check_out_at, duration_sec, close_reason, created_at, updated_at)
+                (id, user_id, check_in_at, check_out_at, duration_sec,
+                 close_reason, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (

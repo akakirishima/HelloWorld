@@ -28,18 +28,26 @@ ALL_STATUSES = ACTIVE_WORK_STATUSES | {PresenceStatus.OFF_CAMPUS.value}
 JST = ZoneInfo("Asia/Tokyo")
 
 
-def resolve_target_user(stores: Stores, actor: UserRecord, target_user_id: str | None) -> UserRecord:
+def resolve_target_user(
+    stores: Stores, actor: UserRecord, target_user_id: str | None
+) -> UserRecord:
     if target_user_id is None or target_user_id == actor.user_id:
         return actor
 
     if actor.role != UserRole.ADMIN.value:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot update another user.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Cannot update another user."
+        )
 
     target = stores.users.get_by_user_id(target_user_id)
     if target is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found."
+        )
     if not target.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Target user is inactive.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Target user is inactive."
+        )
     return target
 
 
@@ -61,7 +69,9 @@ def check_in(
     open_session = stores.sessions.get_open_session(target.user_id)
 
     if open_session is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already checked in.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="User is already checked in."
+        )
     if presence.current_status not in (
         PresenceStatus.OFF_CAMPUS.value,
         PresenceStatus.LONG_TERM_ABSENCE.value,
@@ -131,7 +141,9 @@ def check_out(
     presence = stores.presence.ensure(target.user_id)
     open_session = stores.sessions.get_open_session(target.user_id)
     if open_session is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active session to check out.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No active session to check out."
+        )
 
     now = datetime.now(timezone.utc)
     check_in_at = normalize_datetime(open_session.check_in_at)
@@ -259,7 +271,9 @@ def change_status(
     presence = stores.presence.ensure(target.user_id)
     open_session = stores.sessions.get_open_session(target.user_id)
     if open_session is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is not checked in.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="User is not checked in."
+        )
 
     from_status = presence.current_status
     if from_status == to_status:
@@ -321,7 +335,9 @@ def patch_session_by_admin(
         updated = updated.model_copy(update={"check_out_at": check_out_at})
 
     normalized_check_in = normalize_datetime(updated.check_in_at)
-    normalized_check_out = normalize_datetime(updated.check_out_at) if updated.check_out_at else None
+    normalized_check_out = (
+        normalize_datetime(updated.check_out_at) if updated.check_out_at else None
+    )
     if normalized_check_out is not None and normalized_check_out < normalized_check_in:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -499,7 +515,9 @@ def serialize_session(session_obj: SessionRecord) -> dict:
 
 def validate_status(value: str) -> None:
     if value not in ALL_STATUSES:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid status value.")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid status value."
+        )
 
 
 def normalize_datetime(value: datetime) -> datetime:

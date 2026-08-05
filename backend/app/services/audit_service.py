@@ -25,8 +25,14 @@ def create_audit_log(
         action=action,
         target_type=target_type,
         target_id=target_id,
-        before_json=json.dumps(normalize_json_value(before_json), ensure_ascii=False) if before_json else None,
-        after_json=json.dumps(normalize_json_value(after_json), ensure_ascii=False) if after_json else None,
+        before_json=(
+            json.dumps(normalize_json_value(before_json), ensure_ascii=False)
+            if before_json else None
+        ),
+        after_json=(
+            json.dumps(normalize_json_value(after_json), ensure_ascii=False)
+            if after_json else None
+        ),
         reason=reason,
         created_at=datetime.now(timezone.utc),
     )

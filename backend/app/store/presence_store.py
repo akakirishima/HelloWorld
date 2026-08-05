@@ -73,7 +73,9 @@ class PresenceStore:
     def get(self, user_id: str) -> PresenceRecord | None:
         if self._sqlite is None:
             return None
-        row = self._sqlite.execute("SELECT * FROM presence WHERE user_id = ?", (user_id,)).fetchone()
+        row = self._sqlite.execute(
+            "SELECT * FROM presence WHERE user_id = ?", (user_id,)
+        ).fetchone()
         return _row_to_record(row) if row is not None else None
 
     def list_all(self) -> list[PresenceRecord]:
