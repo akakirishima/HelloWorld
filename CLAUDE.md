@@ -18,7 +18,7 @@
 
 ```bash
 cd backend
-python -m venv .venv
+python -m venv .venv  # Python 3.11 以上
 source .venv/bin/activate
 pip install -e ".[dev]"
 uvicorn app.main:app --reload
@@ -28,7 +28,7 @@ Windows PowerShell では仮想環境の有効化は次を使います。
 
 ```powershell
 cd backend
-py -m venv .venv
+py -m venv .venv  # Python 3.11 以上
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 uvicorn app.main:app --reload
@@ -39,6 +39,8 @@ backend の既定 URL:
 - root endpoint: `http://127.0.0.1:8000/`
 - health: `http://127.0.0.1:8000/api/health`
 - OpenAPI docs: `http://127.0.0.1:8000/api/docs`
+
+現行 backend で `backend/app/api/router.py` に登録されている公開ルートは `auth`、`attendance`、`calibration`、`health`、`notes`、`presence`、`sessions`、`settings`、`users` です。部屋管理は `/api/rooms`、研究室設定は `/api/settings/lab` として `settings.py` で提供されています。
 
 ### frontend
 
@@ -59,15 +61,16 @@ cd backend && ruff check .
 
 # frontend
 cd frontend && npm run lint
-cd frontend && npm run build
 cd frontend && npm run test:e2e
 ```
+
+`npm run build` script は `frontend/package.json` に存在しますが、このプロジェクトでは本番ビルド手順として提案しません。通常の確認は `npm run lint` と、必要に応じて `npm run test:e2e` を使います。
 
 `npm run test:e2e` は Playwright を使い、`frontend/playwright.config.ts` の webServer 設定で `127.0.0.1:4173` に Vite dev server を起動します。backend は自動起動されないため、API を使う E2E では別途 `uvicorn app.main:app --reload` を起動しておきます。
 
 ## 依存関係
 
-backend は `backend/pyproject.toml` を正とします。
+backend は `backend/pyproject.toml` を正とします。`requires-python = ">=3.11"` なので、Python 3.10 前提で扱わないでください。
 
 - Python: `>=3.11`
 - FastAPI: `>=0.116,<1.0`
@@ -111,7 +114,9 @@ frontend は `frontend/package.json` と `frontend/package-lock.json` を正と�
 - Tailwind CSS: `^3.4.17`
 - @playwright/test: `^1.58.2`
 
-`frontend/package.json` に Node の `engines` 指定はありません。リポジトリ直下に `package.json` はありません。`package-lock.json` の解決済み依存には Node 20 以上を要求するものがあります。React Router DOM 7.13.1 は `>=20.0.0`、Vite 7.3.1 と `@vitejs/plugin-react` 5.1.4 は `^20.19.0 || >=22.12.0`、`@typescript-eslint/visitor-keys` 配下の `eslint-visitor-keys` 5.0.1 は `^20.19.0 || ^22.13.0 || >=24` です。Node 22 固定とは扱わず、実行環境で `node --version` と `npm --version` を確認してください。
+`frontend/package.json` に Node の `engines` 指定はありません。リポジトリ直下に `package.json` はありません。`package-lock.json` の解決済み依存には Node 20 以上を要求するものがあります。React Router DOM 7.13.1 は `>=20.0.0`、Vite 7.3.1 と `@vitejs/plugin-react` 5.1.4 は `^20.19.0 || >=22.12.0` です。一方、`typescript-eslint` 8.56.1 と通常の `eslint-visitor-keys` 4.2.1 は `^18.18.0 || ^20.9.0 || >=21.1.0` です。Node 22 固定とは扱わず、実行環境で `node --version` と `npm --version` を確認してください。
+
+この作業環境では `backend/.venv` は存在せず、グローバルの `python --version` は `3.12.3`、`node --version` は `v24.15.0`、`npm --version` は `11.12.1` です。`package-lock.json` 上の主な解決済みバージョンは React / React DOM `19.2.4`、`@types/react` `19.2.14`、`@vitejs/plugin-react` `5.1.4`、ESLint `9.39.4`、`eslint-plugin-react-refresh` `0.4.26`、`typescript-eslint` `8.56.1` です。
 
 ## 環境変数
 
@@ -141,6 +146,8 @@ frontend では `VITE_API_PROXY_TARGET` を参照します。未指定時は `ht
 `APP_BASE_URL` は `Settings` には定義されていますが、現時点の backend コードでは参照されていません。
 
 `ALLOWED_SUBNETS` はカンマ区切りの CIDR 文字列として扱われます。未指定または空ならネットワーク制限は無効です。指定時は loopback と許可サブネット内のクライアントのみ通します。
+
+現時点の作業ツリーには `backend/.env` と `frontend/.env` は存在しません。
 
 `backend/.env.example` は現行の `Settings` を網羅していません。`APP_BASE_URL`、`DATA_ROOT_PATH`、`SQLITE_PATH`、`BACKUP_ROOT_PATH`、`BACKUP_RETENTION_COUNT`、`SESSION_SECRET_KEY`、`ALLOWED_SUBNETS` は載っていません。また、現行の `Settings` では定義されていない古い変数が残っています。`SQLALCHEMY_ECHO` と Google OAuth 関連の変数は、現時点の backend コードでは `extra="ignore"` により無視されます。`DATABASE_URL=sqlite:///./data/app.db` もアプリ本体の SQLite 接続先にはならず、通常の DB パスは `SQLITE_PATH` で決まります。
 
@@ -175,11 +182,14 @@ frontend では `VITE_API_PROXY_TARGET` を参照します。未指定時は `ht
 - Python は ruff 設定に従う。`line-length = 100`、`target-version = "py311"`
 - TypeScript / TSX は既存の小文字ファイル名と named export のパターンに合わせる
 - API は frontend 側で `/api` prefix を付けて呼び出す。backend 側の `API_PREFIX` と Vite proxy 設定の関係を崩さない
-- `.env`、SQLite DB、NAS データ、バックアップ成果物、ログはコミットしない
+- `.env`、SQLite DB、NAS データ、バックアップ成果物、ログはコミットしない。現時点の `.gitignore` は `backend/*.log` を除外していないため、未追跡ログを誤って含めない
 - 日誌 API は `backend/app/store/note_store.py` の `NoteStore` を使い、SQLite に保存します。`backend/app/services/file_notes_service.py` の `FileNotesStore` は現行ルートから参照されていない旧ファイル保存実装です。
+- `frontend/src/pages/admin-settings-page.tsx` には日誌を Markdown / NAS 保存と説明する古い表示文言が残っていますが、現行の notes API の保存先は SQLite です。
+- `frontend/src/pages/admin-corrections-page.tsx`、`frontend/src/pages/admin-aggregates-page.tsx`、`frontend/src/pages/admin-audit-logs-page.tsx` は `frontend/src/mocks/app-data.ts` のモックデータ表示です。backend には週次勤怠サマリ API と日誌の Excel 出力 API はありますが、勤怠修正一覧 API、集計 CSV 出力 API、監査ログ一覧 API には接続されていません。
 
 ## 既知の削除済み・未確認情報
 
 - `infra/` ディレクトリは現時点のリポジトリには存在しない
 - Caddy / nginx / Apache / systemd / Docker 用の設定ファイルは現時点のリポジトリには存在しない
 - Google OAuth 関連の環境変数は `backend/app/core/config.py` では定義されておらず、現行の notes API にも Google OAuth 接続ルートは存在しない
+- `/api/audit-logs` の専用ルートは現時点では存在しない。監査ログの store / service はありますが、公開 API としては提供されていません。
