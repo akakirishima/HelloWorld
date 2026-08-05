@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from fastapi import HTTPException
 
 from app.core.constants import PresenceStatus, UserRole
 from app.core.security import get_password_hash
@@ -161,6 +164,37 @@ def test_long_term_absence_without_open_session_only_labels_presence(tmp_path: P
     assert presence.current_status == PresenceStatus.LONG_TERM_ABSENCE.value
     assert presence.absence_reason == "homecoming"
     assert stores.sessions.list_by_user(member.user_id) == []
+
+
+def test_concurrent_check_in_does_not_duplicate_sessions(tmp_path: Path) -> None:
+    stores, admin, member = _setup_stores(tmp_path)
+
+    results: list = []
+    errors: list[Exception] = []
+
+    def attempt() -> None:
+        try:
+            presence = check_in(
+                stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value
+            )
+            results.append(presence)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        futures = [pool.submit(attempt) for _ in range(20)]
+        for future in futures:
+            future.result()
+
+    assert len(results) == 1
+    assert len(errors) == 19
+    for exc in errors:
+        assert isinstance(exc, HTTPException)
+        assert exc.status_code == 400
+
+    sessions = stores.sessions.list_by_user(member.user_id)
+    open_sessions = [s for s in sessions if s.check_out_at is None]
+    assert len(open_sessions) == 1
 
 
 def test_weekly_attendance_summary_uses_jst_ranges_and_open_sessions(tmp_path: Path) -> None:

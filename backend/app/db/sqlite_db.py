@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -160,7 +160,33 @@ class SqliteDb:
         }
         if "absence_reason" not in presence_cols:
             self._conn.execute("ALTER TABLE presence ADD COLUMN absence_reason TEXT")
+
+        self._close_duplicate_open_sessions_locked()
+        self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_open_unique "
+            "ON sessions(user_id) WHERE check_out_at IS NULL"
+        )
         self._conn.commit()
+
+    def _close_duplicate_open_sessions_locked(self) -> None:
+        """既存データに同一ユーザーの二重オープンセッションが残っていると
+        idx_sessions_open_unique の作成自体が失敗するため、最新の1件だけ
+        残して他は取り込み時点で強制クローズする（一度きりの後始末）。"""
+        rows = self._conn.execute(
+            "SELECT id, user_id FROM sessions WHERE check_out_at IS NULL "
+            "ORDER BY user_id, check_in_at DESC"
+        ).fetchall()
+        seen_users: set[str] = set()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        for row in rows:
+            if row["user_id"] in seen_users:
+                self._conn.execute(
+                    "UPDATE sessions SET check_out_at = ?, duration_sec = 0, "
+                    "close_reason = 'admin_correction' WHERE id = ?",
+                    (now_iso, row["id"]),
+                )
+            else:
+                seen_users.add(row["user_id"])
 
     def execute(self, sql: str, params: tuple = ()) -> _MaterializedCursor:
         with self._lock:

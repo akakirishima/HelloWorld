@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -81,7 +82,14 @@ def check_in(
         created_at=now,
         updated_at=now,
     )
-    session = stores.sessions.add(session)
+    try:
+        session = stores.sessions.add(session)
+    except sqlite3.IntegrityError as exc:
+        # idx_sessions_open_unique 違反 = 上の get_open_session チェックと
+        # このINSERTの間に別リクエストが割り込んでオープンセッションを作った。
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="User is already checked in."
+        ) from exc
 
     from_status = presence.current_status
     presence = stores.presence.save(
