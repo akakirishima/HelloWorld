@@ -162,6 +162,18 @@ const StatusCard = memo(function StatusCard({
     return () => window.clearTimeout(timeout);
   }, [optimisticActive]);
 
+  // アンマウント時に長押し中のタイマーを確実に破棄する。
+  // これがないと、カードが再構成/削除された後もタイマーが生き続け、
+  // 閾値到達時に存在しないユーザーへ onSectionSelect が呼ばれてしまう。
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
+
   const getFillPct = (key: SectionKey): number => {
     if (pressing && pressing !== activeSection) {
       if (key === pressing) return progress;
