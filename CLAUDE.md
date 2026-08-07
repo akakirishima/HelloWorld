@@ -116,7 +116,7 @@ frontend は `frontend/package.json` と `frontend/package-lock.json` を正と�
 
 `frontend/package.json` に Node の `engines` 指定はありません。リポジトリ直下に `package.json` はありません。`package-lock.json` の解決済み依存には Node 20 以上を要求するものがあります。React Router DOM 7.13.1 は `>=20.0.0`、Vite 7.3.1 と `@vitejs/plugin-react` 5.1.4 は `^20.19.0 || >=22.12.0` です。一方、`typescript-eslint` 8.56.1 と通常の `eslint-visitor-keys` 4.2.1 は `^18.18.0 || ^20.9.0 || >=21.1.0` です。Node 22 固定とは扱わず、実行環境で `node --version` と `npm --version` を確認してください。
 
-この作業環境では `backend/.venv` は存在せず、グローバルの `python --version` は `3.12.3`、`node --version` は `v24.15.0`、`npm --version` は `11.12.1` です。`package-lock.json` 上の主な解決済みバージョンは React / React DOM `19.2.4`、`@types/react` `19.2.14`、`@vitejs/plugin-react` `5.1.4`、ESLint `9.39.4`、`eslint-plugin-react-refresh` `0.4.26`、`typescript-eslint` `8.56.1` です。
+この作業環境では `backend/.venv` が存在し、グローバルの `python --version` と `backend/.venv` の Python はどちらも `3.12.3` です。`node --version` は `v24.15.0`、`npm --version` は `11.12.1` です。`package-lock.json` 上の主な解決済みバージョンは React / React DOM `19.2.4`、`@types/react` `19.2.14`、`@vitejs/plugin-react` `5.1.4`、ESLint `9.39.4`、`eslint-plugin-react-refresh` `0.4.26`、`typescript-eslint` `8.56.1` です。
 
 ## 環境変数
 
@@ -181,7 +181,7 @@ frontend では `VITE_API_PROXY_TARGET` を参照します。未指定時は `ht
 - アプリケーションコードを変更する前に、関連するテストと設定ファイルを確認する
 - Python は ruff 設定に従う。`line-length = 100`、`target-version = "py311"`
 - TypeScript / TSX は既存の小文字ファイル名と named export のパターンに合わせる
-- API は frontend 側で `/api` prefix を付けて呼び出す。backend 側の `API_PREFIX` と Vite proxy 設定の関係を崩さない
+- 通常の API 呼び出しは `frontend/src/api/client.ts` の `apiFetch("/...")` を使う。`apiFetch` が `/api` prefix を付けるため、呼び出し側の input には `/api` を含めない。backend 側の `API_PREFIX` と Vite proxy 設定の関係を崩さない
 - `.env`、SQLite DB、NAS データ、バックアップ成果物、ログはコミットしない。現時点の `.gitignore` は `backend/*.log` を除外していないため、未追跡ログを誤って含めない
 - 日誌 API は `backend/app/store/note_store.py` の `NoteStore` を使い、SQLite に保存します。`backend/app/services/file_notes_service.py` の `FileNotesStore` は現行ルートから参照されていない旧ファイル保存実装です。
 - `frontend/src/pages/admin-settings-page.tsx` には日誌を Markdown / NAS 保存と説明する古い表示文言が残っていますが、現行の notes API の保存先は SQLite です。
