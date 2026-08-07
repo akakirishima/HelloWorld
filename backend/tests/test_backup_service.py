@@ -28,7 +28,9 @@ def test_create_postgres_backup_keeps_recent_generations(monkeypatch, tmp_path: 
 
     create_postgres_backup(settings=settings, now=datetime(2026, 4, 5, 10, 0, tzinfo=timezone.utc))
     create_postgres_backup(settings=settings, now=datetime(2026, 4, 5, 11, 0, tzinfo=timezone.utc))
-    latest = create_postgres_backup(settings=settings, now=datetime(2026, 4, 5, 12, 0, tzinfo=timezone.utc))
+    latest = create_postgres_backup(
+        settings=settings, now=datetime(2026, 4, 5, 12, 0, tzinfo=timezone.utc)
+    )
 
     backup_dir = tmp_path / "postgres"
     remaining = sorted(path.name for path in backup_dir.glob("app-*.dump"))

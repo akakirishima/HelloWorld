@@ -74,7 +74,7 @@ export function AdminUserDeletePage() {
       setError(message);
       setIsDeleting(false);
     }
-  }, [canDelete, navigate, user?.displayName, userId]);
+  }, [canDelete, navigate, user, userId]);
 
   if (!user) return null;
 

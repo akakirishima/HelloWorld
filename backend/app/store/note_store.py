@@ -3,15 +3,15 @@ from __future__ import annotations
 import json
 import shutil
 from datetime import date, datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
-
-_JST = ZoneInfo("Asia/Tokyo")
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 
 from app.db.sqlite_db import SqliteDb
 from app.models.note import NoteRecord
+
+_JST = ZoneInfo("Asia/Tokyo")
 
 
 def _row_to_record(row: object) -> NoteRecord:

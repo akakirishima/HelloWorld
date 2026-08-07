@@ -5,7 +5,6 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS lab (
     id INTEGER PRIMARY KEY,

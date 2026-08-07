@@ -95,19 +95,26 @@ def _merge(ws, cell_range: str, value=None, font=None, align=None, border=True) 
     ws.merge_cells(cell_range)
     min_col, min_row, *_ = range_boundaries(cell_range)
     cell = ws.cell(row=min_row, column=min_col)
-    if value  is not None: cell.value     = value
-    if font   is not None: cell.font      = font
-    if align  is not None: cell.alignment = align
+    if value is not None:
+        cell.value = value
+    if font is not None:
+        cell.font = font
+    if align is not None:
+        cell.alignment = align
     if border:
         _outer_border(ws, cell_range)
 
 
 def _cell(ws, row: int, col: int, value=None, font=None, align=None, border=True):
     c = ws.cell(row=row, column=col)
-    if value is not None: c.value     = value
-    if font  is not None: c.font      = font
-    if align is not None: c.alignment = align
-    if border:            c.border    = BORDER_THIN
+    if value is not None:
+        c.value = value
+    if font is not None:
+        c.font = font
+    if align is not None:
+        c.alignment = align
+    if border:
+        c.border = BORDER_THIN
     return c
 
 

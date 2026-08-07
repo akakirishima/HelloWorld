@@ -19,7 +19,9 @@ def _sqlite_row_to_record(row: object) -> UserRecord:
         academic_year=row["academic_year"],
         room_id=row["room_id"],
         must_change_password=bool(row["must_change_password"]),
-        last_login_at=datetime.fromisoformat(row["last_login_at"]) if row["last_login_at"] else None,
+        last_login_at=(
+            datetime.fromisoformat(row["last_login_at"]) if row["last_login_at"] else None
+        ),
         is_active=bool(row["is_active"]),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),

@@ -88,7 +88,11 @@ def create_timesheet_workbook(
     # ── 日付ごとの lookup ────────────────────────────────────
     notes_by_date: dict[str, NoteRecord] = {}
     for note in notes:
-        key = note.note_date.isoformat() if hasattr(note.note_date, "isoformat") else str(note.note_date)
+        key = (
+            note.note_date.isoformat()
+            if hasattr(note.note_date, "isoformat")
+            else str(note.note_date)
+        )
         notes_by_date[key] = note
 
     sessions_by_date: dict[str, list[SessionRecord]] = {}
