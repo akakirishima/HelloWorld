@@ -13,6 +13,7 @@ class PresenceItem(BaseModel):
     room_name: str | None
     current_status: str
     current_session_id: str | None
+    absence_reason: str | None = None
     last_changed_at: datetime | None
     today_check_in_at: datetime | None
     today_check_out_at: datetime | None

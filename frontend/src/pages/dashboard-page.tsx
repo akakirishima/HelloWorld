@@ -1,3 +1,5 @@
+import { useCallback } from "react";
+
 import { StatusCardGrid } from "@/components/dashboard/status-card-grid";
 import { DashboardTab } from "@/components/dashboard/dashboard-tab";
 import { Panel } from "@/components/ui/panel";
@@ -9,6 +11,7 @@ export function DashboardPage() {
   const {
     activeRooms,
     effectiveScope,
+    handleAbsenceSelect,
     handleCellSelect,
     isLoaded,
     labName,
@@ -17,6 +20,19 @@ export function DashboardPage() {
     statusError,
     visibleRows,
   } = useDashboardBoard();
+
+  const onSectionSelect = useCallback(
+    (rowId: string, section: "lab" | "onCampus" | "class" | "home") => {
+      if (section === "lab") {
+        return handleCellSelect(rowId, "room");
+      }
+      if (section === "onCampus") {
+        return handleCellSelect(rowId, "onCampus");
+      }
+      return handleCellSelect(rowId, section);
+    },
+    [handleCellSelect],
+  );
 
   if (!isLoaded) {
     return (
@@ -74,15 +90,8 @@ export function DashboardPage() {
             />
           </div>
           <StatusCardGrid
-            onSectionSelect={(rowId, section) => {
-              if (section === "lab") {
-                return handleCellSelect(rowId, "room");
-              }
-              if (section === "onCampus") {
-                return handleCellSelect(rowId, "onCampus");
-              }
-              return handleCellSelect(rowId, section);
-            }}
+            onSectionSelect={onSectionSelect}
+            onAbsenceSelect={handleAbsenceSelect}
             rows={visibleRows}
           />
         </Panel>

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from fastapi import HTTPException
 
 from app.core.constants import PresenceStatus, UserRole
 from app.core.security import get_password_hash
@@ -16,6 +19,7 @@ from app.services.attendance_service import (
     check_out,
     patch_session_by_admin,
     resolve_target_user,
+    set_long_term_absence,
 )
 from app.store import make_stores
 
@@ -26,19 +30,29 @@ def test_member_self_attendance_and_session_flow(tmp_path: Path) -> None:
     target = resolve_target_user(stores, member, None)
     assert target.user_id == member.user_id
 
-    presence = check_in(stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value)
+    presence = check_in(
+        stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value
+    )
     assert presence.current_status == PresenceStatus.ROOM.value
     assert presence.current_session_id is not None
 
     duplicate_check_in = _call_exc(
-        lambda: check_in(stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value)
+        lambda: check_in(
+            stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value
+        )
     )
     assert duplicate_check_in is not None
 
-    status = change_status(stores, actor=member, target=member, to_status=PresenceStatus.CLASS.value)
+    status = change_status(
+        stores, actor=member, target=member, to_status=PresenceStatus.CLASS.value
+    )
     assert status.current_status == PresenceStatus.CLASS.value
 
-    invalid_status = _call_exc(lambda: change_status(stores, actor=member, target=member, to_status=PresenceStatus.OFF_CAMPUS.value))
+    invalid_status = _call_exc(
+        lambda: change_status(
+            stores, actor=member, target=member, to_status=PresenceStatus.OFF_CAMPUS.value
+        )
+    )
     assert invalid_status is not None
 
     presence = check_out(stores, actor=member, target=member)
@@ -65,10 +79,14 @@ def test_target_user_permission_and_admin_updates(tmp_path: Path) -> None:
     resolved = resolve_target_user(stores, admin, target.user_id)
     assert resolved.user_id == target.user_id
 
-    presence = check_in(stores, actor=admin, target=target, initial_status=PresenceStatus.ON_CAMPUS.value)
+    presence = check_in(
+        stores, actor=admin, target=target, initial_status=PresenceStatus.ON_CAMPUS.value
+    )
     assert presence.current_status == PresenceStatus.ON_CAMPUS.value
 
-    presence = change_status(stores, actor=admin, target=target, to_status=PresenceStatus.SEMINAR.value)
+    presence = change_status(
+        stores, actor=admin, target=target, to_status=PresenceStatus.SEMINAR.value
+    )
     assert presence.current_status == PresenceStatus.SEMINAR.value
 
     presence = check_out(stores, actor=admin, target=target)
@@ -115,9 +133,84 @@ def test_patch_session_validations_and_audit_log(tmp_path: Path) -> None:
     audit_rows = stores.audit.list_recent(limit=20)
     log = next(
         row for row in audit_rows
-        if row.action == "session_patch" and row.target_type == "sessions" and row.target_id == updated.id
+        if row.action == "session_patch"
+        and row.target_type == "sessions"
+        and row.target_id == updated.id
     )
     assert log.reason == "退勤漏れ修正"
+
+
+def test_long_term_absence_closes_session_and_allows_check_in_return(tmp_path: Path) -> None:
+    stores, admin, member = _setup_stores(tmp_path)
+
+    check_in(stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value)
+
+    invalid_reason = _call_exc(
+        lambda: set_long_term_absence(stores, actor=member, target=member, reason="vacation")
+    )
+    assert invalid_reason is not None
+
+    presence = set_long_term_absence(stores, actor=member, target=member, reason="business_trip")
+    assert presence.current_status == PresenceStatus.LONG_TERM_ABSENCE.value
+    assert presence.absence_reason == "business_trip"
+    assert presence.current_session_id is None
+
+    sessions = stores.sessions.list_by_user(member.user_id)
+    assert sessions[0].check_out_at is not None
+    assert sessions[0].close_reason == "manual_checkout"
+    closed_duration_sec = sessions[0].duration_sec
+    assert closed_duration_sec is not None and closed_duration_sec >= 0
+
+    # 長期不在中でも滞在時間を持ち越さず、既存の出勤操作で復帰できる
+    presence = check_in(
+        stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value
+    )
+    assert presence.current_status == PresenceStatus.ROOM.value
+    assert presence.absence_reason is None
+    assert len(stores.sessions.list_by_user(member.user_id)) == 2
+
+    actions = _audit_actions(stores, member.user_id)
+    assert "long_term_absence" in actions
+
+
+def test_long_term_absence_without_open_session_only_labels_presence(tmp_path: Path) -> None:
+    stores, admin, member = _setup_stores(tmp_path)
+
+    presence = set_long_term_absence(stores, actor=member, target=member, reason="homecoming")
+    assert presence.current_status == PresenceStatus.LONG_TERM_ABSENCE.value
+    assert presence.absence_reason == "homecoming"
+    assert stores.sessions.list_by_user(member.user_id) == []
+
+
+def test_concurrent_check_in_does_not_duplicate_sessions(tmp_path: Path) -> None:
+    stores, admin, member = _setup_stores(tmp_path)
+
+    results: list = []
+    errors: list[Exception] = []
+
+    def attempt() -> None:
+        try:
+            presence = check_in(
+                stores, actor=member, target=member, initial_status=PresenceStatus.ROOM.value
+            )
+            results.append(presence)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        futures = [pool.submit(attempt) for _ in range(20)]
+        for future in futures:
+            future.result()
+
+    assert len(results) == 1
+    assert len(errors) == 19
+    for exc in errors:
+        assert isinstance(exc, HTTPException)
+        assert exc.status_code == 400
+
+    sessions = stores.sessions.list_by_user(member.user_id)
+    open_sessions = [s for s in sessions if s.check_out_at is None]
+    assert len(open_sessions) == 1
 
 
 def test_weekly_attendance_summary_uses_jst_ranges_and_open_sessions(tmp_path: Path) -> None:
@@ -184,7 +277,9 @@ def _setup_stores(tmp_path: Path, *, include_target: bool = False):
     admin = _create_user(stores, "admin-user", "Admin User", UserRole.ADMIN.value, room.id, now)
     member = _create_user(stores, "member-user", "Member User", UserRole.MEMBER.value, room.id, now)
     if include_target:
-        target = _create_user(stores, "target-user", "Target User", UserRole.MEMBER.value, room.id, now)
+        target = _create_user(
+            stores, "target-user", "Target User", UserRole.MEMBER.value, room.id, now
+        )
         return stores, admin, member, target
     return stores, admin, member
 

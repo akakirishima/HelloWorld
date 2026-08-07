@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/api/client";
 import { useLabBoard } from "@/features/lab-board/lab-board-context";
 import { buildDashboardBoardSummary, sortDashboardRows } from "@/mocks/app-data";
-import type { DashboardScope } from "@/types/app";
+import type { AbsenceReason, DashboardScope } from "@/types/app";
 
 const selectedScopeStorageKey = "hello-world.dashboard.selected-scope";
 
@@ -19,7 +19,7 @@ function readStoredScope(): DashboardScope {
 export function useDashboardBoard() {
   const [selectedScope, setSelectedScope] = useState<DashboardScope>(() => readStoredScope());
   const [statusError, setStatusError] = useState<string | null>(null);
-  const { activeRooms, isLoaded, state, updateStatus } = useLabBoard();
+  const { activeRooms, isLoaded, setLongTermAbsence, state, updateStatus } = useLabBoard();
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -81,10 +81,27 @@ export function useDashboardBoard() {
     [updateStatus],
   );
 
+  const handleAbsenceSelect = useCallback(
+    async (rowId: string, reason: AbsenceReason) => {
+      setStatusError(null);
+      try {
+        await setLongTermAbsence(rowId, reason);
+      } catch (error) {
+        if (error instanceof ApiError) {
+          setStatusError(error.message);
+          return;
+        }
+        setStatusError("状態更新に失敗しました。");
+      }
+    },
+    [setLongTermAbsence],
+  );
+
   return {
     activeRooms,
     boardSummary,
     effectiveScope,
+    handleAbsenceSelect,
     handleCellSelect,
     isLoaded,
     labName: state.lab.labName,

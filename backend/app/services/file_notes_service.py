@@ -26,7 +26,9 @@ class FileNotesStore:
         self.user_id = user_id
         self.root_path = root_path
 
-    def list_notes(self, *, q: str | None, date_from: date | None, date_to: date | None) -> list[NoteRecord]:
+    def list_notes(
+        self, *, q: str | None, date_from: date | None, date_to: date | None
+    ) -> list[NoteRecord]:
         items = [self._parse_note_file(path) for path in self._user_root().glob("*/*.md")]
         notes = [item for item in items if item is not None]
         if q:
@@ -49,10 +51,14 @@ class FileNotesStore:
             return None
         return self._parse_note_file(note_path)
 
-    def create_note(self, *, note_date: date, title: str, did_today: str, future_tasks: str) -> NoteRecord:
+    def create_note(
+        self, *, note_date: date, title: str, did_today: str, future_tasks: str
+    ) -> NoteRecord:
         note_path = self._note_path(note_date)
         if note_path.exists():
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A note for this date already exists.")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="A note for this date already exists."
+            )
 
         now = datetime.now(timezone.utc)
         record = NoteRecord(
@@ -67,12 +73,16 @@ class FileNotesStore:
         self._write_note_file(note_path, record)
         return record
 
-    def update_note(self, *, note_id: str, note_date: date, title: str, did_today: str, future_tasks: str) -> NoteRecord:
+    def update_note(
+        self, *, note_id: str, note_date: date, title: str, did_today: str, future_tasks: str
+    ) -> NoteRecord:
         current_path = self._note_path_from_id(note_id)
         current = self._require_note(current_path)
         next_path = self._note_path(note_date)
         if next_path != current_path and next_path.exists():
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A note for this date already exists.")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="A note for this date already exists."
+            )
 
         updated = NoteRecord(
             id=note_date.isoformat(),
@@ -186,7 +196,9 @@ class FileNotesStore:
         try:
             note_date = date.fromisoformat(note_id)
         except ValueError as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found.") from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Note not found."
+            ) from exc
         return self._note_path(note_date)
 
     def _user_root(self) -> Path:

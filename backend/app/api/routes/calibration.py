@@ -26,7 +26,8 @@ def apply_calibration(payload: MatrixPayload) -> dict[str, str]:
 
     try:
         subprocess.run(
-            ["xinput", "set-prop", DEVICE_NAME, "Coordinate Transformation Matrix"] + [str(v) for v in mat],
+            ["xinput", "set-prop", DEVICE_NAME, "Coordinate Transformation Matrix"]
+            + [str(v) for v in mat],
             check=True,
             capture_output=True,
             text=True,
@@ -59,6 +60,8 @@ EndSection
                 text=True,
             )
         except subprocess.CalledProcessError as e:
-            raise HTTPException(status_code=500, detail=f"failed to write config: {e.stderr}") from e
+            raise HTTPException(
+                status_code=500, detail=f"failed to write config: {e.stderr}"
+            ) from e
 
     return {"status": "ok", "matrix": prop_values}

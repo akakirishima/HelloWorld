@@ -4,13 +4,19 @@ from fastapi import APIRouter
 
 from app.api.deps import ActiveUser, AppStores
 from app.api.routes.presence import serialize_presence_item
-from app.schemas.attendance import AttendanceSummaryResponse, CheckInRequest, CheckOutRequest
+from app.schemas.attendance import (
+    AttendanceSummaryResponse,
+    CheckInRequest,
+    CheckOutRequest,
+    SetLongTermAbsenceRequest,
+)
 from app.schemas.presence import PresenceItem
 from app.services.attendance_service import (
     build_weekly_attendance_summary,
     check_in,
     check_out,
     resolve_target_user,
+    set_long_term_absence,
 )
 
 router = APIRouter(prefix="/attendance")
@@ -27,6 +33,15 @@ def check_in_route(payload: CheckInRequest, actor: ActiveUser, stores: AppStores
 def check_out_route(payload: CheckOutRequest, actor: ActiveUser, stores: AppStores) -> PresenceItem:
     target = resolve_target_user(stores, actor, payload.target_user_id)
     presence = check_out(stores, actor=actor, target=target)
+    return serialize_presence_item(stores, target, presence=presence)
+
+
+@router.post("/long-term-absence", response_model=PresenceItem)
+def long_term_absence_route(
+    payload: SetLongTermAbsenceRequest, actor: ActiveUser, stores: AppStores
+) -> PresenceItem:
+    target = resolve_target_user(stores, actor, payload.target_user_id)
+    presence = set_long_term_absence(stores, actor=actor, target=target, reason=payload.reason)
     return serialize_presence_item(stores, target, presence=presence)
 
 

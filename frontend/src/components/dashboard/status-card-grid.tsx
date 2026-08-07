@@ -1,6 +1,15 @@
-import type { DashboardMatrixRow } from "@/types/app";
+import type { AbsenceReason, DashboardMatrixRow } from "@/types/app";
 
-import { FlaskConical, GraduationCap, Home, School } from "lucide-react";
+import {
+  CircleEllipsis,
+  FlaskConical,
+  GraduationCap,
+  Home,
+  Luggage,
+  MoreVertical,
+  Plane,
+  School,
+} from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -14,9 +23,21 @@ type StatusCardGridProps = {
   showAds?: boolean;
   disabledSections?: SectionKey[];
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
+  onAbsenceSelect?: (rowId: string, reason: AbsenceReason) => Promise<void> | void;
 };
 
+type SectionIcon = typeof Plane;
+type SectionTheme = (typeof sectionThemes)[SectionKey];
+
+const absenceOptions: Array<{ key: AbsenceReason; label: string; icon: SectionIcon }> = [
+  { key: "business_trip", label: "Business Trip", icon: Plane },
+  { key: "homecoming", label: "Homecoming", icon: Luggage },
+  { key: "other", label: "Other", icon: CircleEllipsis },
+];
+
 type SectionKey = "lab" | "onCampus" | "class" | "home";
+
+const EMPTY_DISABLED_SECTIONS: SectionKey[] = [];
 
 const sections: Array<{ key: SectionKey; label: string }> = [
   { key: "lab", label: "Lab" },
@@ -37,8 +58,9 @@ export function StatusCardGrid({
   className,
   fillViewport = false,
   showAds = false,
-  disabledSections = [],
+  disabledSections = EMPTY_DISABLED_SECTIONS,
   onSectionSelect,
+  onAbsenceSelect,
 }: StatusCardGridProps) {
   const memberRowCount = Math.max(1, Math.ceil(rows.length / 2));
   const rowCount = memberRowCount + (showAds ? 1 : 0);
@@ -65,6 +87,7 @@ export function StatusCardGrid({
           fillViewport={fillViewport}
           disabledSections={disabledSections}
           onSectionSelect={onSectionSelect}
+          onAbsenceSelect={onAbsenceSelect}
           row={row}
         />
       ))}
@@ -137,21 +160,39 @@ const StatusCard = memo(function StatusCard({
   fillViewport,
   disabledSections,
   onSectionSelect,
+  onAbsenceSelect,
 }: {
   row: DashboardMatrixRow;
   fillViewport: boolean;
   disabledSections: SectionKey[];
   onSectionSelect?: (rowId: string, section: SectionKey) => Promise<void> | void;
+  onAbsenceSelect?: (rowId: string, reason: AbsenceReason) => Promise<void> | void;
 }) {
   const serverActive = mapRowToSection(row);
   const [optimisticActive, setOptimisticActive] = useState<SectionKey | null>(null);
   const [pressing, setPressing] = useState<SectionKey | null>(null);
   const [progress, setProgress] = useState(0);
+  const [absenceMenuOpen, setAbsenceMenuOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
+  const absenceMenuRef = useRef<HTMLDivElement | null>(null);
 
+  const isAbsent = row.statusLabel === "Long-term Absence";
   const activeSection = optimisticActive ?? serverActive;
-  const theme = sectionThemes[activeSection];
+  const theme = isAbsent ? sectionThemes.home : sectionThemes[activeSection];
+  const activeAbsenceOption =
+    absenceOptions.find((option) => option.key === row.absenceReason) ?? absenceOptions[2];
+
+  useEffect(() => {
+    if (!absenceMenuOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!absenceMenuRef.current?.contains(event.target as Node)) {
+        setAbsenceMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [absenceMenuOpen]);
 
   /* 最新のユーザー意図を TTL の間だけ守る。
      サーバが opt.value に追いつけば表示は同じなのでそのまま同居し、TTL 後に自然消失。
@@ -222,6 +263,43 @@ const StatusCard = memo(function StatusCard({
           : { contain: "layout paint" }
       }
     >
+      {onAbsenceSelect ? (
+        <div ref={absenceMenuRef} className="absolute right-1.5 top-1.5 z-20">
+          <button
+            aria-label={`${row.name} の長期不在設定`}
+            className={cn(
+              "flex items-center justify-center rounded-full p-1 opacity-60 transition hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300",
+              theme.nameText,
+            )}
+            onClick={(event) => {
+              event.stopPropagation();
+              setAbsenceMenuOpen((open) => !open);
+            }}
+            type="button"
+          >
+            <MoreVertical aria-hidden="true" className="h-4 w-4" />
+          </button>
+          {absenceMenuOpen ? (
+            <div className="absolute right-0 top-full mt-1 w-32 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+              {absenceOptions.map((option) => (
+                <button
+                  key={option.key}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  onClick={() => {
+                    setAbsenceMenuOpen(false);
+                    void onAbsenceSelect(row.id, option.key);
+                  }}
+                  type="button"
+                >
+                  <option.icon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* ── 上部エリア ── */}
       <header
         className={cn(
@@ -273,23 +351,58 @@ const StatusCard = memo(function StatusCard({
         />
       </header>
 
-      <div className={cn("grid grid-cols-4 divide-x", theme.sectionsDivide, theme.sectionsBg, fillViewport ? "flex-1 min-h-0" : "")} style={{ transitionDelay: "0ms" }}>
-        {sections.map((section) => (
+      {isAbsent ? (
+        <div
+          className={cn("grid grid-cols-2 divide-x", theme.sectionsDivide, theme.sectionsBg, fillViewport ? "flex-1 min-h-0" : "")}
+          style={{ transitionDelay: "0ms" }}
+        >
           <StatusSection
-            key={section.key}
-            fillPct={getFillPct(section.key)}
-            noTransition={pressing !== null && (section.key === pressing || section.key === activeSection)}
-            disabled={disabledSections.includes(section.key)}
+            fillPct={getFillPct("lab")}
+            noTransition={pressing !== null && (pressing === "lab" || activeSection === "lab")}
+            disabled={disabledSections.includes("lab")}
             fillViewport={fillViewport}
-            label={section.label}
-            sectionKey={section.key}
+            label="Lab"
+            icon={sectionIcons.lab}
+            theme={sectionThemes.lab}
             cardInactiveIconClass={theme.iconInactiveText}
             cardInactiveTextClass={theme.textInactive}
-            onPressStart={(startTime) => handlePressStart(section.key, startTime)}
+            onPressStart={(startTime) => handlePressStart("lab", startTime)}
             onPressEnd={handlePressEnd}
           />
-        ))}
-      </div>
+          <StatusSection
+            fillPct={1}
+            noTransition
+            disabled={false}
+            fillViewport={fillViewport}
+            label={activeAbsenceOption.label}
+            icon={activeAbsenceOption.icon}
+            theme={theme}
+            cardInactiveIconClass={theme.iconInactiveText}
+            cardInactiveTextClass={theme.textInactive}
+            onPressStart={() => {}}
+            onPressEnd={() => {}}
+          />
+        </div>
+      ) : (
+        <div className={cn("grid grid-cols-4 divide-x", theme.sectionsDivide, theme.sectionsBg, fillViewport ? "flex-1 min-h-0" : "")} style={{ transitionDelay: "0ms" }}>
+          {sections.map((section) => (
+            <StatusSection
+              key={section.key}
+              fillPct={getFillPct(section.key)}
+              noTransition={pressing !== null && (section.key === pressing || section.key === activeSection)}
+              disabled={disabledSections.includes(section.key)}
+              fillViewport={fillViewport}
+              label={section.label}
+              icon={sectionIcons[section.key]}
+              theme={sectionThemes[section.key]}
+              cardInactiveIconClass={theme.iconInactiveText}
+              cardInactiveTextClass={theme.textInactive}
+              onPressStart={(startTime) => handlePressStart(section.key, startTime)}
+              onPressEnd={handlePressEnd}
+            />
+          ))}
+        </div>
+      )}
 
     </article>
   );
@@ -373,7 +486,8 @@ function StatusSection({
   noTransition,
   disabled,
   label,
-  sectionKey,
+  icon: Icon,
+  theme,
   fillViewport,
   cardInactiveIconClass,
   cardInactiveTextClass,
@@ -384,15 +498,14 @@ function StatusSection({
   noTransition: boolean;
   disabled: boolean;
   label: string;
-  sectionKey: SectionKey;
+  icon: SectionIcon;
+  theme: SectionTheme;
   fillViewport: boolean;
   cardInactiveIconClass: string;
   cardInactiveTextClass: string;
   onPressStart: (startTime: number) => void;
   onPressEnd: () => void;
 }) {
-  const Icon = sectionIcons[sectionKey];
-  const theme = sectionThemes[sectionKey];
   const lit = fillPct > 0.5;
 
   return (

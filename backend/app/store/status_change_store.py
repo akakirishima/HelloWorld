@@ -46,7 +46,8 @@ class StatusChangeStore:
                 self._sqlite.execute_and_commit(
                     """
                     INSERT OR IGNORE INTO status_changes
-                        (id, user_id, session_id, from_status, to_status, changed_at, changed_by, source)
+                        (id, user_id, session_id, from_status, to_status,
+                         changed_at, changed_by, source)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (

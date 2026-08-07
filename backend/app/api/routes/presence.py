@@ -5,9 +5,8 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter
 
-from app.api.deps import ActiveUser, AdminUser, AppStores
+from app.api.deps import ActiveUser, AppStores
 from app.models.presence_latest import PresenceRecord
-from app.models.session import SessionRecord
 from app.models.user import UserRecord
 from app.schemas.attendance import ChangeStatusRequest
 from app.schemas.presence import PresenceItem, PresenceListResponse, PresenceMeResponse
@@ -41,8 +40,12 @@ def my_presence(user: ActiveUser, stores: AppStores) -> PresenceItem:
 
 
 @router.post("/status", response_model=PresenceItem)
-def update_status(payload: ChangeStatusRequest, actor: ActiveUser, stores: AppStores) -> PresenceItem:
-    from fastapi import HTTPException, status as http_status
+def update_status(
+    payload: ChangeStatusRequest, actor: ActiveUser, stores: AppStores
+) -> PresenceItem:
+    from fastapi import HTTPException
+    from fastapi import status as http_status
+
     from app.core.constants import UserRole
     if actor.role == UserRole.MEMBER.value and payload.to_status == "Room":
         raise HTTPException(
@@ -79,14 +82,11 @@ def serialize_presence_item(
             room_name=room.name if room else None,
             current_status="Off Campus",
             current_session_id=None,
+            absence_reason=None,
             last_changed_at=None,
             today_check_in_at=None,
             today_check_out_at=None,
         )
-
-    open_session: SessionRecord | None = None
-    if presence.current_session_id is not None:
-        open_session = stores.sessions.get_by_id(presence.current_session_id)
 
     today = datetime.now(_JST).date()
     today_sessions = [
@@ -94,14 +94,18 @@ def serialize_presence_item(
         for session in stores.sessions.list_by_user(user.user_id)
         if normalize_datetime(session.check_in_at).astimezone(_JST).date() == today
     ]
-    first_session = min(today_sessions, key=lambda session: normalize_datetime(session.check_in_at), default=None)
+    first_session = min(
+        today_sessions, key=lambda session: normalize_datetime(session.check_in_at), default=None
+    )
     latest_closed_session = max(
         (session for session in today_sessions if session.check_out_at is not None),
         key=lambda session: normalize_datetime(session.check_out_at),
         default=None,
     )
     today_check_in_at = first_session.check_in_at if first_session is not None else None
-    today_check_out_at = latest_closed_session.check_out_at if latest_closed_session is not None else None
+    today_check_out_at = (
+        latest_closed_session.check_out_at if latest_closed_session is not None else None
+    )
 
     return PresenceItem(
         user_id=user.user_id,
@@ -111,6 +115,7 @@ def serialize_presence_item(
         room_name=room.name if room else None,
         current_status=presence.current_status,
         current_session_id=presence.current_session_id,
+        absence_reason=presence.absence_reason,
         last_changed_at=normalize_optional_datetime(presence.last_changed_at),
         today_check_in_at=normalize_optional_datetime(today_check_in_at),
         today_check_out_at=normalize_optional_datetime(today_check_out_at),

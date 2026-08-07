@@ -46,7 +46,10 @@ class SessionStore:
                         id=row["id"],
                         user_id=row["user_id"],
                         check_in_at=datetime.fromisoformat(row["check_in_at"]),
-                        check_out_at=datetime.fromisoformat(row["check_out_at"]) if row["check_out_at"] else None,
+                        check_out_at=(
+                            datetime.fromisoformat(row["check_out_at"])
+                            if row["check_out_at"] else None
+                        ),
                         duration_sec=int(row["duration_sec"]) if row["duration_sec"] else None,
                         close_reason=row["close_reason"] or None,
                         created_at=datetime.fromisoformat(row["created_at"]),
@@ -57,7 +60,8 @@ class SessionStore:
                 self._sqlite.execute_and_commit(
                     """
                     INSERT OR REPLACE INTO sessions
-                        (id, user_id, check_in_at, check_out_at, duration_sec, close_reason, created_at, updated_at)
+                        (id, user_id, check_in_at, check_out_at, duration_sec,
+                         close_reason, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -78,7 +82,8 @@ class SessionStore:
         self._sqlite.execute_and_commit(
             """
             INSERT OR REPLACE INTO sessions
-                (id, user_id, check_in_at, check_out_at, duration_sec, close_reason, created_at, updated_at)
+                (id, user_id, check_in_at, check_out_at, duration_sec,
+                 close_reason, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
@@ -96,7 +101,28 @@ class SessionStore:
     def add(self, session: SessionRecord) -> SessionRecord:
         now = datetime.now(timezone.utc)
         updated = session.model_copy(update={"updated_at": now})
-        self._sqlite_insert(updated)
+        if self._sqlite is not None:
+            # INSERT OR REPLACE ではなく素の INSERT を使う: idx_sessions_open_unique
+            # の違反を IntegrityError として呼び出し側（同時チェックインの検知）に
+            # 伝える必要があるため（REPLACE は違反行を黙って削除して上書きしてしまう）。
+            self._sqlite.execute_and_commit(
+                """
+                INSERT INTO sessions
+                    (id, user_id, check_in_at, check_out_at, duration_sec,
+                     close_reason, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    updated.id,
+                    updated.user_id,
+                    updated.check_in_at.isoformat(),
+                    updated.check_out_at.isoformat() if updated.check_out_at else None,
+                    updated.duration_sec,
+                    updated.close_reason,
+                    updated.created_at.isoformat(),
+                    updated.updated_at.isoformat(),
+                ),
+            )
         return updated
 
     def get_by_id(self, session_id: str) -> SessionRecord | None:

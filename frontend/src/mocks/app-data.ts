@@ -373,6 +373,7 @@ export const initialDashboardMatrixRows: DashboardMatrixRow[] = presenceMembers.
   statusLabel: member.currentStatus,
   currentSessionId: null,
   checkOutAt: null,
+  absenceReason: null,
   todayDurationSec: 0,
   weeklyDurationSec: 0,
   dailyDurationsSec: [0, 0, 0, 0, 0, 0, 0],

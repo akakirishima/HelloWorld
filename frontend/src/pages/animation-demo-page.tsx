@@ -383,6 +383,8 @@ function CardF() {
   const [prev, setPrev] = useState<Section | null>(null);
   // ドラッグ中の浮遊丸の座標（コンテナ相対 px）
   const [floatPos, setFloatPos] = useState<{ x: number; y: number } | null>(null);
+  // ホバー中セクション（ドラッグ中のみ、ポインタ移動時に更新）
+  const [hoverSection, setHoverSection] = useState<Section | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const startClientPos = useRef({ x: 0, y: 0 });
   const isDragging = floatPos !== null;
@@ -393,11 +395,6 @@ function CardF() {
     if (relX < 2 / 3) return "class";
     return "home";
   }, []);
-
-  // ホバー中セクション（ドラッグ中のみ）
-  const hoverSection: Section | null = (isDragging && containerRef.current)
-    ? getSectionAtX(floatPos!.x / containerRef.current.getBoundingClientRect().width)
-    : null;
 
   const commit = useCallback((key: Section) => {
     setPrev(active);
@@ -415,8 +412,9 @@ function CardF() {
       x: Math.max(0, Math.min(rect.width,  e.clientX - rect.left)),
       y: Math.max(0, Math.min(rect.height, e.clientY - rect.top)),
     });
+    setHoverSection(getSectionAtX((e.clientX - rect.left) / rect.width));
     e.currentTarget.setPointerCapture(e.pointerId);
-  }, []);
+  }, [getSectionAtX]);
 
   // コンテナ全体: move / up を受け取る（capture中は外に出ても追跡できる）
   const onContainerPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -426,7 +424,8 @@ function CardF() {
       x: Math.max(0, Math.min(rect.width,  e.clientX - rect.left)),
       y: Math.max(0, Math.min(rect.height, e.clientY - rect.top)),
     });
-  }, [isDragging]);
+    setHoverSection(getSectionAtX((e.clientX - rect.left) / rect.width));
+  }, [isDragging, getSectionAtX]);
 
   const onContainerPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging || !containerRef.current) return;
@@ -435,6 +434,7 @@ function CardF() {
     const target = getSectionAtX(relX);
     commit(target);
     setFloatPos(null);
+    setHoverSection(null);
   }, [isDragging, commit, getSectionAtX]);
 
   return (
@@ -1042,7 +1042,6 @@ function CardQ() {
   const [active, setActive] = useState<Section>("lab");
   const [dropKey, setDropKey] = useState(0);
   const [dropIdx, setDropIdx] = useState(0);
-  const idx = sectionIndex[active];
 
   const handleClick = (s: Section) => {
     if (s === active) return;
@@ -1122,8 +1121,9 @@ function CardS() {
   const startRef = useRef(0);
   const HOLD_MS = 800;
 
-  const startPress = (s: Section) => {
-    if (s === active) return;
+  const startPress = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const s = e.currentTarget.dataset.section as Section | undefined;
+    if (!s || s === active) return;
     setPressing(s);
     setProgress(0);
     startRef.current = Date.now();
@@ -1156,8 +1156,9 @@ function CardS() {
           <button
             key={key}
             type="button"
+            data-section={key}
             className={cn("flex flex-1 flex-col items-center justify-center gap-2 py-5 select-none", active === key && "bg-green-100")}
-            onPointerDown={() => startPress(key)}
+            onPointerDown={startPress}
             onPointerUp={cancelPress}
             onPointerLeave={cancelPress}
           >
@@ -1245,7 +1246,9 @@ function CardU() {
   const [confirmKey, setConfirmKey] = useState(0);
   const lastTap = useRef<{ section: Section; time: number } | null>(null);
 
-  const handleTap = (s: Section) => {
+  const handleTap = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const s = e.currentTarget.dataset.section as Section | undefined;
+    if (!s) return;
     const now = Date.now();
     if (lastTap.current && lastTap.current.section === s && now - lastTap.current.time < 350) {
       setActive(s);
@@ -1272,8 +1275,9 @@ function CardU() {
           <button
             key={key}
             type="button"
+            data-section={key}
             className={cn("flex flex-1 flex-col items-center justify-center gap-2 py-5", active === key && "bg-pink-100")}
-            onClick={() => handleTap(key)}
+            onClick={handleTap}
           >
             <span
               key={active === key ? `a-${confirmKey}` : pulse === key ? `p-${key}` : key}
@@ -1581,8 +1585,6 @@ function CardZ() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function CardAA() {
   const [active, setActive] = useState<Section>("lab");
-  const [animKey, setAnimKey] = useState(0);
-  const [sequence, setSequence] = useState<Section[]>([]);
 
   const handleClick = (s: Section) => {
     if (s === active) return;
@@ -1593,8 +1595,6 @@ function CardAA() {
       if (found) { seq.push(step); if (step === s) break; }
       if (step === active) found = true;
     }
-    setSequence(seq);
-    setAnimKey(k => k + 1);
     let delay = 0;
     for (const step of seq) {
       delay += 250;
@@ -1993,7 +1993,6 @@ function CardGG() {
       <div className={cn(headerBase, "bg-teal-100 border-teal-200 text-teal-900")}>案GG｜背景塗りつぶし</div>
       <div className={cn(bodyBase, "bg-teal-50 divide-x divide-teal-100")}>
         {sections.map(({ key, label, Icon }) => {
-          const isActive = key === active;
           const fillPct = getFillPct(key);
           const isLit = fillPct > 50;
           return (
@@ -2243,7 +2242,6 @@ function CardLL() {
   const { pressing, progress, start, cancel } = useLongPress((s) => setActive(s));
   const R = 15;
   const circ = 2 * Math.PI * R;
-  const shakeAmp = pressing ? Math.sin(Date.now() / 60) * progress * 3 : 0;
 
   return (
     <div className={cn(cardBase, "border-orange-200 bg-white")}>

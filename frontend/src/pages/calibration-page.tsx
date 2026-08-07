@@ -5,22 +5,22 @@ const COOKIE_KEY = "touch_matrix";
 const saveCookie = (m: number[]) => {
   document.cookie = `${COOKIE_KEY}=${JSON.stringify(m)};path=/;max-age=${60 * 60 * 24 * 365}`;
 };
-const loadCookie = (): number[] | null => {
-  const match = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_KEY}=([^;]*)`));
-  if (!match) return null;
-  try {
-    const v = JSON.parse(decodeURIComponent(match[1]));
-    if (Array.isArray(v) && v.length === 9) return v;
-  } catch { /* ignore */ }
-  return null;
-};
-
 /* ── 行列演算 ── */
 type Mat3 = [
   number, number, number,
   number, number, number,
   number, number, number,
 ];
+
+const loadCookie = (): Mat3 | null => {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_KEY}=([^;]*)`));
+  if (!match) return null;
+  try {
+    const v = JSON.parse(decodeURIComponent(match[1]));
+    if (Array.isArray(v) && v.length === 9) return v as Mat3;
+  } catch { /* ignore */ }
+  return null;
+};
 
 const IDENTITY: Mat3 = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 

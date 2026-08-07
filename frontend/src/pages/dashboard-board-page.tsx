@@ -54,6 +54,7 @@ function padRowsForDev(rows: DashboardMatrixRow[]): DashboardMatrixRow[] {
         roomId: null,
         activeColumn: DEV_PAD_COLUMNS[idx % DEV_PAD_COLUMNS.length],
         statusLabel: DEV_PAD_STATUSES[idx % DEV_PAD_STATUSES.length],
+        absenceReason: null,
         currentSessionId: null,
         checkInAt: idx % 3 === 0 ? "未出勤" : "09:00",
         checkOutAt: null,
@@ -74,7 +75,8 @@ function padRowsForDev(rows: DashboardMatrixRow[]): DashboardMatrixRow[] {
 
 export function DashboardBoardPage() {
   const { isLoading, user } = useAuth();
-  const { handleCellSelect, isLoaded, statusError, visibleRows } = useDashboardBoard();
+  const { handleAbsenceSelect, handleCellSelect, isLoaded, statusError, visibleRows } =
+    useDashboardBoard();
 
   const displayRows = useMemo(() => padRowsForDev(visibleRows), [visibleRows]);
 
@@ -136,6 +138,7 @@ export function DashboardBoardPage() {
           showAds
           disabledSections={disabledSections}
           onSectionSelect={isAdmin ? onSectionSelect : undefined}
+          onAbsenceSelect={isAdmin ? handleAbsenceSelect : undefined}
           rows={displayRows}
         />
         <Link
