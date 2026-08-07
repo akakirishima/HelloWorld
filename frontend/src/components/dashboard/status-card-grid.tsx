@@ -37,6 +37,8 @@ const absenceOptions: Array<{ key: AbsenceReason; label: string; icon: SectionIc
 
 type SectionKey = "lab" | "onCampus" | "class" | "home";
 
+const EMPTY_DISABLED_SECTIONS: SectionKey[] = [];
+
 const sections: Array<{ key: SectionKey; label: string }> = [
   { key: "lab", label: "Lab" },
   { key: "onCampus", label: "On Campus" },
@@ -56,7 +58,7 @@ export function StatusCardGrid({
   className,
   fillViewport = false,
   showAds = false,
-  disabledSections = [],
+  disabledSections = EMPTY_DISABLED_SECTIONS,
   onSectionSelect,
   onAbsenceSelect,
 }: StatusCardGridProps) {
