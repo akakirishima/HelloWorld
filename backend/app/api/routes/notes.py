@@ -3,6 +3,7 @@ from __future__ import annotations
 import calendar
 from datetime import date, datetime
 from pathlib import Path
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
@@ -35,9 +36,9 @@ def _notes_store(stores: AppStores, user: UserRecord) -> NoteStore:
 def list_notes(
     stores: AppStores,
     user: ActiveUser,
-    q: str | None = Query(default=None),
-    date_from: date | None = Query(default=None),
-    date_to: date | None = Query(default=None),
+    q: Annotated[str | None, Query()] = None,
+    date_from: Annotated[date | None, Query()] = None,
+    date_to: Annotated[date | None, Query()] = None,
 ) -> NotesListResponse:
     store = _notes_store(stores, user)
     notes = store.list_notes(q=q, date_from=date_from, date_to=date_to)

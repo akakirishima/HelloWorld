@@ -4,12 +4,12 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from app.api.deps import ActiveUser, AppStores, CurrentUser
+from app.api.deps import AppStores, CurrentUser
 from app.core.security import get_password_hash, verify_password
 from app.models.user import UserRecord
 from app.schemas.auth import AuthStatusResponse, ChangePasswordRequest, LoginRequest, MeResponse
-from app.services.audit_service import create_audit_log
 from app.services.attendance_service import normalize_datetime
+from app.services.audit_service import create_audit_log
 
 router = APIRouter(prefix="/auth")
 
@@ -23,7 +23,9 @@ def login(payload: LoginRequest, request: Request, stores: AppStores) -> AuthSta
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is inactive.")
 
-    updated = stores.users.save(user.model_copy(update={"last_login_at": datetime.now(timezone.utc)}))
+    updated = stores.users.save(
+        user.model_copy(update={"last_login_at": datetime.now(timezone.utc)})
+    )
     request.session["user_id"] = updated.user_id
 
     create_audit_log(
@@ -54,7 +56,9 @@ def change_password(
     user: CurrentUser,
 ) -> AuthStatusResponse:
     if not verify_password(payload.current_password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect."
+        )
 
     updated = stores.users.save(user.model_copy(update={
         "password_hash": get_password_hash(payload.new_password),

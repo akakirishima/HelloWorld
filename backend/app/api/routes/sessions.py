@@ -55,7 +55,9 @@ def serialize_session_item(session_obj: SessionRecord, users: dict) -> SessionIt
         user_id=session_obj.user_id,
         display_name=user.display_name if user else session_obj.user_id,
         check_in_at=normalize_datetime(session_obj.check_in_at),
-        check_out_at=normalize_datetime(session_obj.check_out_at) if session_obj.check_out_at else None,
+        check_out_at=(
+            normalize_datetime(session_obj.check_out_at) if session_obj.check_out_at else None
+        ),
         duration_sec=session_obj.duration_sec,
         close_reason=session_obj.close_reason,
     )

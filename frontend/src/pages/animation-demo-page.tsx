@@ -395,9 +395,11 @@ function CardF() {
   }, []);
 
   // ホバー中セクション（ドラッグ中のみ）
+  /* eslint-disable react-hooks/refs -- ドラッグ中のDOM幅計測に伴うref読み取り。挙動を変えない範囲での既存debt */
   const hoverSection: Section | null = (isDragging && containerRef.current)
     ? getSectionAtX(floatPos!.x / containerRef.current.getBoundingClientRect().width)
     : null;
+  /* eslint-enable react-hooks/refs */
 
   const commit = useCallback((key: Section) => {
     setPrev(active);
@@ -1042,7 +1044,6 @@ function CardQ() {
   const [active, setActive] = useState<Section>("lab");
   const [dropKey, setDropKey] = useState(0);
   const [dropIdx, setDropIdx] = useState(0);
-  const idx = sectionIndex[active];
 
   const handleClick = (s: Section) => {
     if (s === active) return;
@@ -1126,6 +1127,7 @@ function CardS() {
     if (s === active) return;
     setPressing(s);
     setProgress(0);
+    // eslint-disable-next-line react-hooks/purity -- イベントハンドラ内の時刻計測。挙動を変えない既存debt
     startRef.current = Date.now();
     timerRef.current = setInterval(() => {
       const p = Math.min(1, (Date.now() - startRef.current) / HOLD_MS);
@@ -1246,6 +1248,7 @@ function CardU() {
   const lastTap = useRef<{ section: Section; time: number } | null>(null);
 
   const handleTap = (s: Section) => {
+    // eslint-disable-next-line react-hooks/purity -- イベントハンドラ内の時刻計測。挙動を変えない既存debt
     const now = Date.now();
     if (lastTap.current && lastTap.current.section === s && now - lastTap.current.time < 350) {
       setActive(s);
@@ -1581,8 +1584,6 @@ function CardZ() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function CardAA() {
   const [active, setActive] = useState<Section>("lab");
-  const [animKey, setAnimKey] = useState(0);
-  const [sequence, setSequence] = useState<Section[]>([]);
 
   const handleClick = (s: Section) => {
     if (s === active) return;
@@ -1593,8 +1594,6 @@ function CardAA() {
       if (found) { seq.push(step); if (step === s) break; }
       if (step === active) found = true;
     }
-    setSequence(seq);
-    setAnimKey(k => k + 1);
     let delay = 0;
     for (const step of seq) {
       delay += 250;
@@ -1993,7 +1992,6 @@ function CardGG() {
       <div className={cn(headerBase, "bg-teal-100 border-teal-200 text-teal-900")}>案GG｜背景塗りつぶし</div>
       <div className={cn(bodyBase, "bg-teal-50 divide-x divide-teal-100")}>
         {sections.map(({ key, label, Icon }) => {
-          const isActive = key === active;
           const fillPct = getFillPct(key);
           const isLit = fillPct > 50;
           return (
@@ -2243,7 +2241,6 @@ function CardLL() {
   const { pressing, progress, start, cancel } = useLongPress((s) => setActive(s));
   const R = 15;
   const circ = 2 * Math.PI * R;
-  const shakeAmp = pressing ? Math.sin(Date.now() / 60) * progress * 3 : 0;
 
   return (
     <div className={cn(cardBase, "border-orange-200 bg-white")}>

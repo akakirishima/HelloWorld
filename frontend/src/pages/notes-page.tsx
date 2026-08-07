@@ -527,7 +527,7 @@ function filenameFromContentDisposition(value: string | null): string | null {
       return utf8Match[1];
     }
   }
-  const plainMatch = value.match(/filename=\"?([^\";]+)\"?/i);
+  const plainMatch = value.match(/filename="?([^";]+)"?/i);
   return plainMatch?.[1] ?? null;
 }
 

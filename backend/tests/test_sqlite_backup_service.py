@@ -24,7 +24,9 @@ def test_create_sqlite_backup_keeps_recent_generations(tmp_path: Path) -> None:
 
     create_sqlite_backup(settings=settings, now=datetime(2026, 4, 5, 10, 0, tzinfo=timezone.utc))
     create_sqlite_backup(settings=settings, now=datetime(2026, 4, 5, 11, 0, tzinfo=timezone.utc))
-    latest = create_sqlite_backup(settings=settings, now=datetime(2026, 4, 5, 12, 0, tzinfo=timezone.utc))
+    latest = create_sqlite_backup(
+        settings=settings, now=datetime(2026, 4, 5, 12, 0, tzinfo=timezone.utc)
+    )
 
     backup_dir = tmp_path / "backups" / "sqlite"
     remaining = sorted(path.name for path in backup_dir.glob("app-*.db"))

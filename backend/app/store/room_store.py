@@ -114,7 +114,9 @@ class RoomStore(BaseStore):
                 "DELETE FROM rooms WHERE id = ?", (room_id,)
             )
 
-    def ensure_lab_and_rooms(self, lab_name: str, room_defs: list[dict]) -> tuple[LabRecord, list[RoomRecord]]:
+    def ensure_lab_and_rooms(
+        self, lab_name: str, room_defs: list[dict]
+    ) -> tuple[LabRecord, list[RoomRecord]]:
         """シード用: lab と room を初期化して返す"""
         now = datetime.now(timezone.utc)
 

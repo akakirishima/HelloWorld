@@ -8,6 +8,12 @@ from starlette.responses import JSONResponse
 
 from app.core.config import get_settings
 
+_FORBIDDEN_DETAIL = "Access is limited to the laboratory network."
+
+
+def _forbidden_response() -> JSONResponse:
+    return JSONResponse(status_code=403, content={"detail": _FORBIDDEN_DETAIL})
+
 
 class NetworkAccessMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -17,18 +23,18 @@ class NetworkAccessMiddleware(BaseHTTPMiddleware):
 
         client_ip = _extract_client_ip(request)
         if client_ip is None:
-            return JSONResponse(status_code=403, content={"detail": "Access is limited to the laboratory network."})
+            return _forbidden_response()
 
         try:
             remote_ip = ip_address(client_ip)
         except ValueError:
-            return JSONResponse(status_code=403, content={"detail": "Access is limited to the laboratory network."})
+            return _forbidden_response()
 
         networks = [ip_network(subnet, strict=False) for subnet in allowed_subnets]
         if remote_ip.is_loopback or any(remote_ip in network for network in networks):
             return await call_next(request)
 
-        return JSONResponse(status_code=403, content={"detail": "Access is limited to the laboratory network."})
+        return _forbidden_response()
 
 
 def _extract_client_ip(request: Request) -> str | None:
