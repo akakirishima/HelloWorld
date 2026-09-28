@@ -59,6 +59,8 @@ Raspberry Pi 上で frontend と backend を起動し、研究室 LAN 内の端�
 
 ## 起動方法
 
+> 詳しい手順は [システム起動ガイド](docs/startup-guide.md) を参照してください。コマンドを1行ずつ実行する形で、backend / frontend の起動、終了、よくある入力ミス、初回セットアップまでまとめています。
+
 ### backend
 
 ```bash
